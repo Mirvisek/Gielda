@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Sparkles,
   ShieldAlert,
@@ -13,6 +14,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  Scale,
 } from "lucide-react";
 import { GeneratedSignal } from "@/lib/scoring/types";
 
@@ -134,6 +136,14 @@ export default function SignalPanel({ symbol, initialSignal }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            href={`/predictions?symbol=${symbol}`}
+            className="text-xs text-amber-400 hover:text-amber-300 font-mono flex items-center gap-1 transition-colors"
+            title="Zobacz historię prognoz w Dzienniku"
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Dziennik Prognoz</span>
+          </Link>
           {getStatusBadge()}
           <button
             onClick={handleRefresh}

@@ -59,12 +59,26 @@ export default function MarketsClient({ initialOverview }: { initialOverview: Ma
           </div>
         </div>
 
-        <Link
-          href="/dashboard"
-          className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-        >
-          ← Dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/news"
+            className="text-xs text-slate-400 hover:text-slate-200 transition-colors hidden sm:inline"
+          >
+            Wiadomości
+          </Link>
+          <Link
+            href="/predictions"
+            className="text-xs text-amber-400 hover:text-amber-300 transition-colors hidden sm:inline"
+          >
+            Prognozy
+          </Link>
+          <Link
+            href="/dashboard"
+            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            ← Dashboard
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1 p-4 lg:p-8 max-w-7xl mx-auto w-full space-y-8">

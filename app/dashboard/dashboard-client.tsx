@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
 import {
@@ -8,10 +9,11 @@ import {
   KeyRound,
   LogOut,
   UserCheck,
-  TrendingUp,
-  AlertTriangle,
   Compass,
   CheckCircle,
+  AlertTriangle,
+  Scale,
+  Newspaper,
 } from "lucide-react";
 
 interface Props {
@@ -92,8 +94,38 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex flex-col text-right">
+        <div className="flex items-center gap-4">
+          <nav className="hidden md:flex items-center gap-3 text-xs">
+            <Link
+              href="/markets"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium"
+            >
+              Rynki
+            </Link>
+            <Link
+              href="/news"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium"
+            >
+              Wiadomości
+            </Link>
+            <Link
+              href="/predictions"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium flex items-center gap-1"
+            >
+              Prognozy
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            </Link>
+            {user.role === "ADMIN" && (
+              <Link
+                href="/admin"
+                className="text-amber-400 hover:text-amber-300 transition-colors font-medium"
+              >
+                Admin
+              </Link>
+            )}
+          </nav>
+
+          <div className="hidden sm:flex flex-col text-right border-l border-slate-800 pl-3">
             <span className="text-xs font-medium text-slate-200">{user.displayName}</span>
             <span className="text-[10px] text-slate-400 font-mono">{user.email}</span>
           </div>
@@ -171,46 +203,61 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
           </div>
         </div>
 
-        {/* Zarys modułów analitycznych (gotowe na kolejne etapy) */}
+        {/* Dostępne moduły analityczne */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl">
+          <Link
+            href="/markets"
+            className="p-5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl transition-all group"
+          >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Reżim Rynkowy
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-blue-400 transition-colors">
+                Moduł Rynkowy
               </span>
               <Compass className="w-4 h-4 text-blue-400" />
             </div>
-            <div className="text-lg font-bold text-slate-100">Etap 4 & 5</div>
-            <p className="text-xs text-slate-500 mt-1">
-              Podłączenie MarketDataProvider (Yahoo/FMP/Polygon) i analiza trendów.
-            </p>
-          </div>
-
-          <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                AI Scoring Engine
-              </span>
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <div className="text-lg font-bold text-slate-100 group-hover:text-white transition-colors">
+              Rynki & Wskaźniki
             </div>
-            <div className="text-lg font-bold text-slate-100">Etap 6</div>
             <p className="text-xs text-slate-500 mt-1">
-              Opportunity, Risk, Confidence i ochrona przed prompt injection.
+              Notowania, świece OHLCV, średnie SMA/EMA, RSI(14) i wskaźniki techniczne.
             </p>
-          </div>
+          </Link>
 
-          <div className="p-5 bg-slate-900/60 border border-slate-800 rounded-2xl">
+          <Link
+            href="/news"
+            className="p-5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl transition-all group"
+          >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-emerald-400 transition-colors">
+                Silnik Wiadomości & AI
+              </span>
+              <Newspaper className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-lg font-bold text-slate-100 group-hover:text-white transition-colors">
+              Agregacja & Sentyment
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Kanały RSS, tarcza przed prompt injection, deduplikacja SimHash i analiza LLM.
+            </p>
+          </Link>
+
+          <Link
+            href="/predictions"
+            className="p-5 bg-slate-900/60 border border-slate-800 hover:border-amber-500/50 rounded-2xl transition-all group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-amber-400 transition-colors">
                 Prediction Journal
               </span>
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <Scale className="w-4 h-4 text-amber-400" />
             </div>
-            <div className="text-lg font-bold text-slate-100">Etap 7</div>
+            <div className="text-lg font-bold text-slate-100 group-hover:text-white transition-colors">
+              Dziennik Prognoz & Kalibracja
+            </div>
             <p className="text-xs text-slate-500 mt-1">
-              Niezmienny rejestr prognoz i ewaluacja historyczna (backtesting).
+              Niezmienny rejestr prognoz, Brier Score i weryfikacja stóp zwrotu +1d/7d/30d/90d.
             </p>
-          </div>
+          </Link>
         </div>
       </main>
     </div>

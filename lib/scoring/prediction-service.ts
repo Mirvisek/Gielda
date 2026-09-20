@@ -2,15 +2,22 @@ import prisma from "@/lib/db/prisma";
 
 export interface PredictionQueryParams {
   symbol?: string;
+  direction?: string;
+  status?: string;
+  resolution?: "ALL" | "SUCCESS" | "FAILURE" | "PENDING";
   page?: number;
   limit?: number;
 }
 
 export interface CalibrationBucket {
   bucketName: string;
+  min: number;
+  max: number;
   totalPredictions: number;
   successfulPredictions: number;
   winRatePercent: number;
+  avgConfidence: number;
+  calibrationGap: number;
   avgOpportunityScore: number;
   avgRiskScore: number;
 }
@@ -27,12 +34,30 @@ export class PredictionService {
    * Zwraca listę prognoz z dziennika z powiązanymi wynikami.
    */
   async getPredictions(params: PredictionQueryParams = {}) {
-    const { symbol, page = 1, limit = 20 } = params;
+    const { symbol, direction, status, resolution, page = 1, limit = 20 } = params;
     const skip = (page - 1) * limit;
 
     const whereClause: Record<string, unknown> = {};
     if (symbol) {
       whereClause.asset = { symbol: symbol.trim().toUpperCase() };
+    }
+    if (direction && direction !== "ALL") {
+      whereClause.predictedDirection = direction;
+    }
+    if (status && status !== "ALL") {
+      whereClause.status = status;
+    }
+    if (resolution && resolution !== "ALL") {
+      if (resolution === "SUCCESS") {
+        whereClause.result = { isSuccess: true };
+      } else if (resolution === "FAILURE") {
+        whereClause.result = { isSuccess: false };
+      } else if (resolution === "PENDING") {
+        whereClause.OR = [
+          { result: null },
+          { result: { isSuccess: null } },
+        ];
+      }
     }
 
     const [items, total] = await Promise.all([
@@ -216,6 +241,7 @@ export class PredictionService {
       max: b.max,
       totalPredictions: 0,
       successfulPredictions: 0,
+      sumConfidence: 0,
       sumOpportunity: 0,
       sumRisk: 0,
     }));
@@ -240,6 +266,7 @@ export class PredictionService {
         if (matches) {
           b.totalPredictions++;
           if (isSuccess) b.successfulPredictions++;
+          b.sumConfidence += pred.confidence;
           b.sumOpportunity += pred.opportunityScore ?? 50;
           b.sumRisk += pred.riskScore ?? 50;
           break;
@@ -250,18 +277,30 @@ export class PredictionService {
     const overallWinRatePercent = Number(((successCount / evaluated.length) * 100).toFixed(1));
     const brierScore = Number((brierSum / evaluated.length).toFixed(4));
 
-    const finalBuckets: CalibrationBucket[] = bucketsMap.map((b) => ({
-      bucketName: b.bucketName,
-      totalPredictions: b.totalPredictions,
-      successfulPredictions: b.successfulPredictions,
-      winRatePercent:
+    const finalBuckets: CalibrationBucket[] = bucketsMap.map((b) => {
+      const winRatePercent =
         b.totalPredictions > 0
           ? Number(((b.successfulPredictions / b.totalPredictions) * 100).toFixed(1))
-          : 0,
-      avgOpportunityScore:
-        b.totalPredictions > 0 ? Math.round(b.sumOpportunity / b.totalPredictions) : 0,
-      avgRiskScore: b.totalPredictions > 0 ? Math.round(b.sumRisk / b.totalPredictions) : 0,
-    }));
+          : 0;
+      const avgConfidence =
+        b.totalPredictions > 0 ? Number((b.sumConfidence / b.totalPredictions).toFixed(1)) : 0;
+      const calibrationGap =
+        b.totalPredictions > 0 ? Number((winRatePercent - avgConfidence).toFixed(1)) : 0;
+
+      return {
+        bucketName: b.bucketName,
+        min: b.min,
+        max: b.max,
+        totalPredictions: b.totalPredictions,
+        successfulPredictions: b.successfulPredictions,
+        winRatePercent,
+        avgConfidence,
+        calibrationGap,
+        avgOpportunityScore:
+          b.totalPredictions > 0 ? Math.round(b.sumOpportunity / b.totalPredictions) : 0,
+        avgRiskScore: b.totalPredictions > 0 ? Math.round(b.sumRisk / b.totalPredictions) : 0,
+      };
+    });
 
     return {
       totalEvaluated: evaluated.length,
