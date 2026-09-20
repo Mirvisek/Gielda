@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, TrendingUp, TrendingDown, ArrowRight, Shield } from "lucide-react";
 import { MarketQuote } from "@/lib/market/types";
+import NotificationBell from "@/components/notifications/notification-bell";
 
 const POPULAR_SYMBOLS = [
   { symbol: "AAPL", name: "Apple Inc.", sector: "Technologia" },
@@ -78,6 +79,13 @@ export default function MarketsClient({ initialOverview }: { initialOverview: Ma
           >
             Portfel
           </Link>
+          <Link
+            href="/alerts"
+            className="text-xs text-rose-400 hover:text-rose-300 transition-colors hidden sm:inline"
+          >
+            Alerty
+          </Link>
+          <NotificationBell />
           <Link
             href="/dashboard"
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"

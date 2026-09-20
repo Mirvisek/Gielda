@@ -15,7 +15,9 @@ import {
   Scale,
   Newspaper,
   Briefcase,
+  Bell,
 } from "lucide-react";
+import NotificationBell from "@/components/notifications/notification-bell";
 
 interface Props {
   user: {
@@ -122,6 +124,12 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
             >
               Portfel
             </Link>
+            <Link
+              href="/alerts"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium"
+            >
+              Alerty
+            </Link>
             {user.role === "ADMIN" && (
               <Link
                 href="/admin"
@@ -140,6 +148,8 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-950 text-blue-400 border border-blue-800 uppercase">
             {user.role}
           </span>
+
+          <NotificationBell />
 
           <button
             onClick={handleLogout}
@@ -211,7 +221,7 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
         </div>
 
         {/* Dostępne moduły analityczne */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <Link
             href="/markets"
             className="p-5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl transition-all group"
@@ -281,6 +291,24 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
             </div>
             <p className="text-xs text-slate-500 mt-1">
               Wycena rynkowa, audyt transakcji, realized/unrealized P&L i ważone ryzyko AI.
+            </p>
+          </Link>
+
+          <Link
+            href="/alerts"
+            className="p-5 bg-slate-900/60 border border-slate-800 hover:border-rose-500/50 rounded-2xl transition-all group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-rose-400 transition-colors">
+                Centrum Alertów
+              </span>
+              <Bell className="w-4 h-4 text-rose-400" />
+            </div>
+            <div className="text-lg font-bold text-slate-100 group-hover:text-white transition-colors">
+              PWA Push & Notyfikacje
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Alerty cenowe, scoringu AI, spadek portfela i natywne powiadomienia na telefon.
             </p>
           </Link>
         </div>

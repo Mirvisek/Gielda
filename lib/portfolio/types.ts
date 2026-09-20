@@ -14,7 +14,7 @@ export const ExecuteTradeSchema = z.object({
   executedAt: z.string().or(z.date()).optional(),
 });
 
-export type ExecuteTradeInput = z.infer<typeof ExecuteTradeSchema>;
+export type ExecuteTradeInput = z.input<typeof ExecuteTradeSchema>;
 
 export const CashOperationSchema = z.object({
   type: z.enum(["DEPOSIT", "WITHDRAWAL", "ADJUSTMENT"]),
@@ -22,7 +22,7 @@ export const CashOperationSchema = z.object({
   description: z.string().max(255).optional(),
 });
 
-export type CashOperationInput = z.infer<typeof CashOperationSchema>;
+export type CashOperationInput = z.input<typeof CashOperationSchema>;
 
 export interface PositionSummary {
   id: string;

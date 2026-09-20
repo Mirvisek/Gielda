@@ -339,7 +339,7 @@ describe("Moduł Portfela Inwestycyjnego (Portfolio Service)", () => {
         changePercent: 0,
         currency: "USD",
         timestamp: new Date(),
-      });
+      } as any);
 
       // Sygnał AI: Risk Score = 60
       vi.spyOn(signalService, "getOrGenerateSignal").mockResolvedValue({
@@ -398,7 +398,7 @@ describe("Moduł Portfela Inwestycyjnego (Portfolio Service)", () => {
         changePercent: 0,
         currency: "USD",
         timestamp: new Date(),
-      });
+      } as any);
 
       // Ryzyko aktywa = 85 (>= 70)
       vi.spyOn(signalService, "getOrGenerateSignal").mockResolvedValue({

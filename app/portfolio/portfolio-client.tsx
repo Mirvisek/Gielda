@@ -30,6 +30,7 @@ import {
   PortfolioTransactionDto,
   CashTransactionDto,
 } from "@/lib/portfolio/types";
+import NotificationBell from "@/components/notifications/notification-bell";
 
 interface Props {
   initialPortfolio: PortfolioSummary;
@@ -434,6 +435,14 @@ export default function PortfolioClient({
           >
             Rynki
           </Link>
+          <Link
+            href="/alerts"
+            className="text-xs text-rose-400 hover:text-rose-300 transition-colors hidden md:inline"
+          >
+            Alerty
+          </Link>
+
+          <NotificationBell />
 
           <div className="hidden sm:flex flex-col text-right border-l border-slate-800 pl-3">
             <span className="text-xs font-medium text-slate-200">{currentUser.displayName}</span>

@@ -18,6 +18,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { CalibrationStats } from "@/lib/scoring/prediction-service";
+import NotificationBell from "@/components/notifications/notification-bell";
 
 export interface RawPredictionInput {
   id: string;
@@ -265,6 +266,13 @@ export default function PredictionClient({
           >
             Portfel
           </Link>
+          <Link
+            href="/alerts"
+            className="text-xs text-rose-400 hover:text-rose-300 transition-colors hidden sm:inline"
+          >
+            Alerty
+          </Link>
+          <NotificationBell />
 
           {isAdmin && (
             <button

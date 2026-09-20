@@ -14,7 +14,7 @@ describe("Testy Bezpieczeństwa IDOR (Cross-User Isolation Guard)", () => {
       changePercent: 0,
       currency: "USD",
       timestamp: new Date(),
-    });
+    } as any);
     vi.spyOn(signalService, "getOrGenerateSignal").mockResolvedValue({
       opportunityScore: 50,
       riskScore: 50,
@@ -66,13 +66,13 @@ describe("Testy Bezpieczeństwa IDOR (Cross-User Isolation Guard)", () => {
 
   it("zapewnia pełną izolację danych portfela pomiędzy Użytkownikiem A a Użytkownikiem B", async () => {
     // Portfele obu użytkowników
-    vi.spyOn(prisma.portfolio, "findFirst").mockImplementation(({ where }: any) => {
+    (vi.spyOn(prisma.portfolio, "findFirst") as any).mockImplementation(({ where }: any) => {
       if (where.userId === userA) return Promise.resolve(portfolioA as any);
       if (where.userId === userB) return Promise.resolve(portfolioB as any);
       return Promise.resolve(null);
     });
 
-    vi.spyOn(prisma.portfolioPosition, "findMany").mockImplementation(({ where }: any) => {
+    (vi.spyOn(prisma.portfolioPosition, "findMany") as any).mockImplementation(({ where }: any) => {
       if (where.portfolioId === portfolioA.id) {
         return Promise.resolve([
           {
@@ -121,7 +121,7 @@ describe("Testy Bezpieczeństwa IDOR (Cross-User Isolation Guard)", () => {
   });
 
   it("zapewnia izolację historii transakcji i księgi gotówki per użytkownik", async () => {
-    vi.spyOn(prisma.portfolio, "findFirst").mockImplementation(({ where }: any) => {
+    (vi.spyOn(prisma.portfolio, "findFirst") as any).mockImplementation(({ where }: any) => {
       if (where.userId === userA) return Promise.resolve(portfolioA as any);
       if (where.userId === userB) return Promise.resolve(portfolioB as any);
       return Promise.resolve(null);

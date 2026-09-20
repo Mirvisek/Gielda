@@ -175,6 +175,8 @@ model User {
   portfolios            Portfolio[]
   watchlists            Watchlist[]
   alerts                Alert[]
+  notifications         AlertNotification[]
+  pushSubscriptions     PushSubscription[]
 
   @@map("users")
 }
@@ -663,19 +665,62 @@ model Watchlist {
 }
 
 model Alert {
-  id                String    @id @default(cuid())
-  userId            String    @map("user_id")
-  assetId           String?   @map("asset_id")
-  alertType         AlertType @map("alert_type")
-  conditionOperator String    @map("condition_operator") @db.VarChar(16) // e.g. ">", "<", "CROSSES"
-  thresholdValue    Decimal   @map("threshold_value") @db.Decimal(18, 4)
-  isTriggered       Boolean   @default(false) @map("is_triggered")
-  triggeredAt       DateTime? @map("triggered_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  id                String              @id @default(cuid())
+  userId            String              @map("user_id")
+  assetId           String?             @map("asset_id")
+  alertType         AlertType           @map("alert_type")
+  conditionOperator String              @map("condition_operator") @db.VarChar(16) // e.g. ">", "<", ">=", "<=", "CROSSES"
+  thresholdValue    Decimal             @map("threshold_value") @db.Decimal(18, 4)
+  isActive          Boolean             @default(true) @map("is_active")
+  notes             String?             @db.VarChar(255)
+  cooldownMinutes   Int                 @default(60) @map("cooldown_minutes")
+  lastNotifiedAt    DateTime?           @map("last_notified_at")
+  isTriggered       Boolean             @default(false) @map("is_triggered")
+  triggeredAt       DateTime?           @map("triggered_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
 
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  asset             Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset             Asset?              @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  notifications     AlertNotification[]
 
   @@index([userId, isTriggered])
+  @@index([userId, isActive])
   @@map("alerts")
+}
+
+model AlertNotification {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  alertId     String?   @map("alert_id")
+  title       String    @db.VarChar(255)
+  message     String    @db.Text
+  severity    String    @default("INFO") @db.VarChar(32) // INFO, WARNING, CRITICAL, SUCCESS
+  isRead      Boolean   @default(false) @map("is_read")
+  readAt      DateTime? @map("read_at")
+  linkUrl     String?   @map("link_url") @db.VarChar(500)
+  metadata    String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert       Alert?    @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("alert_notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique @db.VarChar(1000)
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
