@@ -1,31 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, TrendingUp, TrendingDown, ArrowRight, Shield } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, ArrowRight, Shield, Loader2, Building2 } from "lucide-react";
 import { MarketQuote } from "@/lib/market/types";
 import NotificationBell from "@/components/notifications/notification-bell";
 
 const POPULAR_SYMBOLS = [
-  { symbol: "AAPL", name: "Apple Inc.", sector: "Technologia" },
-  { symbol: "NVDA", name: "NVIDIA Corporation", sector: "Półprzewodniki" },
-  { symbol: "MSFT", name: "Microsoft Corporation", sector: "Oprogramowanie" },
-  { symbol: "GOOGL", name: "Alphabet Inc.", sector: "Internet" },
-  { symbol: "AMZN", name: "Amazon.com Inc.", sector: "E-Commerce" },
-  { symbol: "TSLA", name: "Tesla Inc.", sector: "Motoryzacja" },
-  { symbol: "META", name: "Meta Platforms", sector: "Social Media" },
-  { symbol: "AMD", name: "Advanced Micro Devices", sector: "Półprzewodniki" },
+  { symbol: "AAPL", name: "Apple Inc.", sector: "Technologia (US)" },
+  { symbol: "NVDA", name: "NVIDIA Corporation", sector: "Półprzewodniki (US)" },
+  { symbol: "MSFT", name: "Microsoft Corporation", sector: "Oprogramowanie (US)" },
+  { symbol: "TSLA", name: "Tesla Inc.", sector: "Motoryzacja (US)" },
+  { symbol: "PKO.WA", name: "PKO Bank Polski", sector: "Finanse (GPW)" },
+  { symbol: "PKN.WA", name: "Orlen S.A.", sector: "Energetyka (GPW)" },
+  { symbol: "CDR.WA", name: "CD Projekt", sector: "Gry / Gaming (GPW)" },
+  { symbol: "ALE.WA", name: "Allegro.eu", sector: "E-Commerce (GPW)" },
+  { symbol: "KGH.WA", name: "KGHM Polska Miedź", sector: "Surowce (GPW)" },
+  { symbol: "DNP.WA", name: "Dino Polska", sector: "Handel detaliczny (GPW)" },
+  { symbol: "PEO.WA", name: "Bank Pekao", sector: "Finanse (GPW)" },
+  { symbol: "XTB.WA", name: "XTB S.A.", sector: "Finanse / Broker (GPW)" },
 ];
 
 export default function MarketsClient({ initialOverview }: { initialOverview: MarketQuote[] }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [results, setResults] = useState<
+    Array<{ symbol: string; name: string; exchange?: string; type?: string; currency?: string }>
+  >([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Wyszukiwanie na żywo z debouncingiem 300ms
+  useEffect(() => {
+    const term = search.trim();
+    if (term.length < 1) {
+      setResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/markets/assets?q=${encodeURIComponent(term)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setResults(data.assets || []);
+          setShowDropdown(true);
+        }
+      } catch (err) {
+        console.error("Błąd wyszukiwania aktywów:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Zamykanie listy podpowiedzi po kliknięciu poza komponent
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (search.trim()) {
-      router.push(`/assets/${search.trim().toUpperCase()}`);
+    if (results.length > 0) {
+      router.push(`/assets/${encodeURIComponent(results[0].symbol)}`);
+    } else if (search.trim()) {
+      router.push(`/assets/${encodeURIComponent(search.trim().toUpperCase())}`);
     }
   };
 
@@ -146,27 +197,97 @@ export default function MarketsClient({ initialOverview }: { initialOverview: Ma
           </div>
         </section>
 
-        {/* Wyszukiwarka Aktywów */}
+        {/* Wyszukiwarka Aktywów z podpowiedziami na żywo */}
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-          <h2 className="text-sm font-bold text-slate-100">Przejdź do analizy spółki lub indeksu</h2>
-          <form onSubmit={handleSearchSubmit} className="flex gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Wpisz ticker giełdowy (np. AAPL, NVDA, MSFT, TSLA)..."
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 uppercase font-mono focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-blue-600/20 cursor-pointer"
-            >
-              Szukaj
-            </button>
-          </form>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-400" />
+              Wyszukaj spółkę, indeks lub surowiec do analizy
+            </h2>
+            <span className="text-[11px] text-slate-500 hidden sm:inline">
+              Obsługuje tickery polskie (GPW: PKO, ORLEN, CDR) oraz zagraniczne (NVDA, AAPL)
+            </span>
+          </div>
+
+          <div ref={searchContainerRef} className="relative">
+            <form onSubmit={handleSearchSubmit} className="flex gap-3">
+              <div className="relative flex-1">
+                {isSearching ? (
+                  <Loader2 className="w-4 h-4 text-blue-400 absolute left-3.5 top-3 animate-spin pointer-events-none" />
+                ) : (
+                  <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3 pointer-events-none" />
+                )}
+                <input
+                  type="text"
+                  value={search}
+                  onFocus={() => {
+                    if (results.length > 0) setShowDropdown(true);
+                  }}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Wpisz nazwę firmy lub ticker (np. Apple, PKO BP, Orlen, NVDA, CD Projekt)..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-medium transition-all shadow-md shadow-blue-600/20 cursor-pointer shrink-0"
+              >
+                Przejdź
+              </button>
+            </form>
+
+            {/* Rozwijana lista wyników / podpowiedzi autouzupełniania */}
+            {showDropdown && search.trim().length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden divide-y divide-slate-800 max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                {results.length > 0 ? (
+                  results.map((item) => (
+                    <button
+                      key={item.symbol}
+                      type="button"
+                      onClick={() => {
+                        setShowDropdown(false);
+                        router.push(`/assets/${encodeURIComponent(item.symbol)}`);
+                      }}
+                      className="w-full text-left p-3 hover:bg-slate-800/80 transition-colors flex items-center justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs font-bold text-blue-400 bg-blue-950/60 border border-blue-800/60 px-2 py-0.5 rounded-md">
+                          {item.symbol}
+                        </span>
+                        <div>
+                          <div className="text-xs font-medium text-slate-100 group-hover:text-white transition-colors">
+                            {item.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            {item.exchange && <span>Giełda: {item.exchange}</span>}
+                            {item.currency && (
+                              <>
+                                <span>•</span>
+                                <span>Waluta: {item.currency}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-blue-400 transition-colors shrink-0" />
+                    </button>
+                  ))
+                ) : isSearching ? (
+                  <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                    <span>Wyszukiwanie notowań spółki...</span>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    <div>Brak bezpośrednich dopasowań dla „{search}”.</div>
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      Naciśnij <strong>Enter</strong>, aby spróbować otworzyć ticker bezpośrednio.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </section>
 
         {/* Popularne Aktywa */}

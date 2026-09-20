@@ -7,12 +7,71 @@ import { Prisma } from "@prisma/client";
 
 const BENCHMARK_SYMBOLS = ["SPY", "QQQ", "GLD", "USO"];
 
+export const POLISH_TICKER_MAP: Record<string, string> = {
+  PKOBP: "PKO.WA",
+  PKO: "PKO.WA",
+  PKNORLEN: "PKN.WA",
+  ORLEN: "PKN.WA",
+  PKN: "PKN.WA",
+  CDPROJEKT: "CDR.WA",
+  CDP: "CDR.WA",
+  CDR: "CDR.WA",
+  KGHM: "KGH.WA",
+  KGH: "KGH.WA",
+  PEKAO: "PEO.WA",
+  PEO: "PEO.WA",
+  PZU: "PZU.WA",
+  DINO: "DNP.WA",
+  DINOPOLSKA: "DNP.WA",
+  DNP: "DNP.WA",
+  LPP: "LPP.WA",
+  ALLEGRO: "ALE.WA",
+  ALE: "ALE.WA",
+  GRUPAAZOTY: "ATT.WA",
+  AZOTY: "ATT.WA",
+  ATT: "ATT.WA",
+  JSW: "JSW.WA",
+  PGE: "PGE.WA",
+  SANPL: "SPL.WA",
+  SANTANDER: "SPL.WA",
+  MBANK: "MBK.WA",
+  MBK: "MBK.WA",
+  ORANGE: "OPL.WA",
+  OPL: "OPL.WA",
+  CYFRPLSAT: "CPS.WA",
+  CYFROWYPOLSAT: "CPS.WA",
+  CPS: "CPS.WA",
+  CCC: "CCC.WA",
+  KRUK: "KRU.WA",
+  KRU: "KRU.WA",
+  PEPCO: "PCO.WA",
+  PCO: "PCO.WA",
+  ALIOR: "ALR.WA",
+  ALR: "ALR.WA",
+  BUDIMEX: "BDX.WA",
+  BDX: "BDX.WA",
+  TAURON: "TPE.WA",
+  TPE: "TPE.WA",
+  ENEA: "ENA.WA",
+  ENA: "ENA.WA",
+  XTB: "XTB.WA",
+  ASSECO: "ACP.WA",
+  ACP: "ACP.WA",
+  TEXT: "TXT.WA",
+};
+
+export function resolveMarketSymbol(input: string): string {
+  if (!input) return "";
+  const clean = input.trim().toUpperCase().replace(/\s+/g, "");
+  return POLISH_TICKER_MAP[clean] || clean;
+}
+
 export class MarketService {
   /**
    * 1. Pobiera lub tworzy aktywo w bazie MariaDB.
    */
   async getOrCreateAsset(symbol: string) {
-    const normSymbol = symbol.trim().toUpperCase();
+    const normSymbol = resolveMarketSymbol(symbol);
 
     let asset = await prisma.asset.findUnique({
       where: { symbol: normSymbol },
@@ -49,7 +108,7 @@ export class MarketService {
    * 2. Pobiera bieżące notowanie (z buforem Redis 60s).
    */
   async getQuote(symbol: string): Promise<MarketQuote> {
-    const normSymbol = symbol.trim().toUpperCase();
+    const normSymbol = resolveMarketSymbol(symbol);
     const cacheKey = `quote:${normSymbol}`;
 
     // 1. Sprawdź cache
@@ -79,7 +138,7 @@ export class MarketService {
     interval: CandleInterval = "1d",
     range: "1w" | "1m" | "3m" | "6m" | "1y" | "5y" = "1m"
   ): Promise<OHLCV[]> {
-    const normSymbol = symbol.trim().toUpperCase();
+    const normSymbol = resolveMarketSymbol(symbol);
     const cacheKey = `history:${normSymbol}:${interval}:${range}`;
 
     // 1. Cache hit?
@@ -255,20 +314,117 @@ export class MarketService {
   }
 
   /**
-   * 6. Wyszukiwarka aktywów.
+   * 6. Wyszukiwarka aktywów: wyszukuje w lokalnej bazie oraz na żywo w Yahoo Finance API.
    */
   async searchAssets(query: string) {
-    const norm = query.trim().toUpperCase();
-    return await prisma.asset.findMany({
+    const raw = query.trim();
+    if (!raw) return [];
+
+    const norm = raw.toUpperCase();
+    const mappedSymbol = resolveMarketSymbol(norm);
+
+    // 1. Sprawdź lokalną bazę MariaDB
+    const localAssets = await prisma.asset.findMany({
       where: {
         OR: [
           { symbol: { contains: norm } },
-          { name: { contains: query.trim() } },
+          { symbol: { contains: mappedSymbol } },
+          { name: { contains: raw } },
         ],
         isActive: true,
       },
-      take: 20,
+      take: 15,
     });
+
+    const seenSymbols = new Set<string>(localAssets.map((a) => a.symbol.toUpperCase()));
+    const results: Array<{
+      symbol: string;
+      name: string;
+      currency?: string;
+      exchange?: string;
+      type?: string;
+    }> = localAssets.map((a) => ({
+      symbol: a.symbol,
+      name: a.name,
+      currency: a.currency,
+      exchange: a.exchange || undefined,
+      type: a.assetType,
+    }));
+
+    // 2. Jeśli szukany symbol ma bezpośrednie mapowanie (np. PKOBP -> PKO.WA), dodaj je
+    if (mappedSymbol !== norm && !seenSymbols.has(mappedSymbol)) {
+      seenSymbols.add(mappedSymbol);
+      results.unshift({
+        symbol: mappedSymbol,
+        name: `${norm} (Giełda Papierów Wartościowych)`,
+        currency: "PLN",
+        exchange: "WSE",
+        type: "EQUITY",
+      });
+    }
+
+    // 3. Wyszukaj na żywo przez Yahoo Finance Search API
+    try {
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
+        raw
+      )}&quotesCount=10&newsCount=0`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "*/*",
+        },
+      });
+
+      if (res.ok) {
+        interface YahooSearchQuote {
+          symbol?: string;
+          shortname?: string;
+          longname?: string;
+          exchange?: string;
+          exchDisp?: string;
+          quoteType?: string;
+          typeDisp?: string;
+        }
+
+        const data = await res.json();
+        const quotes: YahooSearchQuote[] = (data.quotes as YahooSearchQuote[]) || [];
+
+        for (const q of quotes) {
+          const sym = q.symbol ? String(q.symbol).trim().toUpperCase() : null;
+          if (!sym || seenSymbols.has(sym)) continue;
+          if (q.quoteType === "OPTION") continue;
+
+          seenSymbols.add(sym);
+          const name = q.shortname || q.longname || sym;
+
+          results.push({
+            symbol: sym,
+            name,
+            exchange: q.exchange || q.exchDisp,
+            type: q.quoteType || q.typeDisp,
+          });
+
+          // Zapisz/zaktualizuj w bazie MariaDB
+          prisma.asset
+            .upsert({
+              where: { symbol: sym },
+              update: { name },
+              create: {
+                symbol: sym,
+                name,
+                currency: sym.endsWith(".WA") ? "PLN" : "USD",
+                isActive: true,
+              },
+            })
+            .catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error("[MarketService searchAssets error]:", e);
+    }
+
+    return results;
   }
 }
 

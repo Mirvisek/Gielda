@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
-import { marketService } from "@/lib/market/market-service";
+import { marketService, resolveMarketSymbol } from "@/lib/market/market-service";
 import { newsService } from "@/lib/news/news-service";
 import { signalService } from "@/lib/scoring/signal-service";
 import AssetClient from "./asset-client";
@@ -18,9 +18,17 @@ export default async function AssetDetailPage({
   }
 
   const { symbol } = await params;
-  const normSymbol = symbol.trim().toUpperCase();
+  const decoded = decodeURIComponent(symbol).trim();
+  const normSymbol = resolveMarketSymbol(decoded);
+
+  // Jeśli użytkownik wpisał popularny alias (np. PKOBP lub ORLEN), przekieruj do kanonicznego tickera (PKO.WA, PKN.WA)
+  if (normSymbol !== decoded.toUpperCase() && !decoded.includes(".")) {
+    redirect(`/assets/${encodeURIComponent(normSymbol)}`);
+  }
 
   try {
+    await marketService.getOrCreateAsset(normSymbol).catch(() => null);
+
     const [quote, initialCandles, indicators, relatedNews, initialSignal] = await Promise.all([
       marketService.getQuote(normSymbol),
       marketService.getHistoricalPrices(normSymbol, "1d", "1m"),
