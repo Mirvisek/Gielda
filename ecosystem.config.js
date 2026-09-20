@@ -39,5 +39,18 @@ module.exports = {
         NODE_ENV: "production",
       },
     },
+    {
+      name: "news-worker",
+      script: "server/workers/news-worker.ts",
+      interpreter: "node_modules/.bin/tsx",
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
   ],
 };

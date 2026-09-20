@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
 import { marketService } from "@/lib/market/market-service";
+import { newsService } from "@/lib/news/news-service";
 import AssetClient from "./asset-client";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +20,11 @@ export default async function AssetDetailPage({
   const normSymbol = symbol.trim().toUpperCase();
 
   try {
-    const [quote, initialCandles, indicators] = await Promise.all([
+    const [quote, initialCandles, indicators, relatedNews] = await Promise.all([
       marketService.getQuote(normSymbol),
       marketService.getHistoricalPrices(normSymbol, "1d", "1m"),
       marketService.getTechnicalIndicators(normSymbol, "1d"),
+      newsService.getNewsForAsset(normSymbol, 5),
     ]);
 
     return (
@@ -31,6 +33,7 @@ export default async function AssetDetailPage({
         initialQuote={quote}
         initialCandles={initialCandles}
         initialIndicators={indicators}
+        initialNews={relatedNews}
       />
     );
   } catch (error) {

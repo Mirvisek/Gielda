@@ -54,6 +54,21 @@ enum SourceTier {
   UNVERIFIED
 }
 
+enum NewsProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  BLOCKED
+}
+
+enum NewsSecurityStatus {
+  CLEAN
+  SUSPICIOUS
+  BLOCKED
+  REVIEW_REQUIRED
+}
+
 enum EventType {
   MACRO
   GEOPOLITIC
@@ -285,6 +300,7 @@ model Asset {
   positions      PortfolioPosition[]
   watchlists     Watchlist[]
   alerts         Alert[]
+  newsAssets     NewsAsset[]
 
   @@index([assetType, isActive])
   @@index([sector])
@@ -341,22 +357,69 @@ model Fundamental {
 // -----------------------------------------------------------------------------
 
 model News {
-  id             String     @id @default(cuid())
-  title          String     @db.VarChar(500)
-  summary        String?    @db.Text
-  content        String?    @db.LongText
-  source         String     @db.VarChar(128)
-  sourceUrl      String?    @map("source_url") @db.VarChar(1000)
-  sourceTier     SourceTier @default(SECONDARY) @map("source_tier")
-  contentHash    String     @unique @map("content_hash") @db.VarChar(64)
-  language       String     @default("en") @db.VarChar(10)
-  sentimentScore Decimal?   @map("sentiment_score") @db.Decimal(5, 2)
-  publishedAt    DateTime   @map("published_at")
-  fetchedAt      DateTime   @default(now()) @map("fetched_at")
+  id                     String               @id @default(cuid())
+  title                  String               @db.VarChar(500)
+  summary                String?              @db.Text
+  content                String?              @db.LongText
+  source                 String               @db.VarChar(128)
+  sourceUrl              String?              @map("source_url") @db.VarChar(1000)
+  sourceTier             SourceTier           @default(SECONDARY) @map("source_tier")
+  sourceReliabilityScore Int                  @default(50) @map("source_reliability_score")
+  contentHash            String               @unique @map("content_hash") @db.VarChar(64)
+  simHash                String?              @map("sim_hash") @db.VarChar(64)
+  duplicateOfId          String?              @map("duplicate_of_id")
+  language               String               @default("en") @db.VarChar(10)
+  sentimentScore         Decimal?             @map("sentiment_score") @db.Decimal(5, 2)
+  processingStatus       NewsProcessingStatus @default(PENDING) @map("processing_status")
+  securityStatus         NewsSecurityStatus   @default(CLEAN) @map("security_status")
+  isFlagged              Boolean              @default(false) @map("is_flagged")
+  flagReason             String?              @map("flag_reason") @db.VarChar(255)
+  processedAt            DateTime?            @map("processed_at")
+  publishedAt            DateTime             @map("published_at")
+  fetchedAt              DateTime             @default(now()) @map("fetched_at")
+
+  duplicateOf            News?                @relation("NewsDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates             News[]               @relation("NewsDuplicates")
+  newsAssets             NewsAsset[]
 
   @@index([publishedAt])
   @@index([sourceTier, publishedAt])
+  @@index([processingStatus, publishedAt])
+  @@index([securityStatus])
+  @@index([duplicateOfId])
   @@map("news")
+}
+
+model NewsAsset {
+  id         String   @id @default(cuid())
+  newsId     String   @map("news_id")
+  assetId    String   @map("asset_id")
+  relevance  Decimal  @default(1.0) @db.Decimal(5, 4)
+  sentiment  Decimal  @default(0.0) @db.Decimal(5, 4)
+  confidence Decimal  @default(1.0) @db.Decimal(5, 4)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  news       News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([newsId, assetId])
+  @@index([assetId])
+  @@map("news_assets")
+}
+
+model NewsFeedSource {
+  id               String     @id @default(cuid())
+  name             String     @db.VarChar(128)
+  url              String     @unique @db.VarChar(1000)
+  tier             SourceTier @default(SECONDARY)
+  reliabilityScore Int        @default(70) @map("reliability_score")
+  category         String     @default("GENERAL") @db.VarChar(64)
+  isActive         Boolean    @default(true) @map("is_active")
+  lastFetched      DateTime?  @map("last_fetched")
+  fetchErrors      Int        @default(0) @map("fetch_errors")
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@map("news_feed_sources")
 }
 
 model Event {

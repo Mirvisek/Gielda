@@ -2,16 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Newspaper } from "lucide-react";
 import { MarketQuote, OHLCV, TechnicalIndicators } from "@/lib/market/types";
 import PriceChart from "@/components/market/price-chart";
 import TechnicalPanel from "@/components/market/technical-panel";
+
+interface RelatedNewsItem {
+  id: string;
+  title: string;
+  summary: string | null;
+  source: string;
+  sourceTier: string;
+  sourceReliabilityScore: number;
+  sentimentScore: number | null;
+  publishedAt: string | Date;
+  sourceUrl?: string | null;
+}
 
 interface Props {
   symbol: string;
   initialQuote: MarketQuote;
   initialCandles: OHLCV[];
   initialIndicators: TechnicalIndicators;
+  initialNews?: unknown[];
 }
 
 export default function AssetClient({
@@ -19,10 +32,12 @@ export default function AssetClient({
   initialQuote,
   initialCandles,
   initialIndicators,
+  initialNews = [],
 }: Props) {
   const [quote, setQuote] = useState<MarketQuote>(initialQuote);
   const [candles, setCandles] = useState<OHLCV[]>(initialCandles);
   const [indicators, setIndicators] = useState<TechnicalIndicators>(initialIndicators);
+  const [news] = useState<RelatedNewsItem[]>(initialNews as RelatedNewsItem[]);
   const [timeframe, setTimeframe] = useState<"1w" | "1m" | "3m" | "6m" | "1y">("1m");
   const [loading, setLoading] = useState(false);
 
@@ -168,6 +183,62 @@ export default function AssetClient({
 
         {/* Panel Wskaźników Technicznych */}
         <TechnicalPanel indicators={indicators} />
+
+        {/* Powiązane Wiadomości i Sentyment */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <Newspaper className="w-4 h-4 text-blue-400" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+                Wiadomości i Analizy dla {symbol}
+              </h2>
+            </div>
+            <Link
+              href={`/news?symbol=${symbol}`}
+              className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+            >
+              Zobacz wszystkie w Silniku Wiadomości →
+            </Link>
+          </div>
+
+          {news.length === 0 ? (
+            <p className="text-xs text-slate-500 py-4 text-center">
+              Brak bezpośrednio powiązanych wiadomości w bieżącym okresie dla {symbol}.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {news.map((item) => (
+                <div
+                  key={item.id}
+                  className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                    <span className="font-semibold text-blue-400">{item.source}</span>
+                    <span>
+                      {new Date(item.publishedAt).toLocaleDateString("pl-PL", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  <h3 className="text-xs sm:text-sm font-semibold text-slate-200 hover:text-white">
+                    {item.sourceUrl ? (
+                      <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
+                        {item.title}
+                      </a>
+                    ) : (
+                      item.title
+                    )}
+                  </h3>
+                  {item.summary && (
+                    <p className="text-xs text-slate-400 line-clamp-2">{item.summary}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

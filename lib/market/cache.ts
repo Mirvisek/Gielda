@@ -97,3 +97,32 @@ export async function invalidateCache(keyPrefix: string): Promise<void> {
     }
   }
 }
+
+export async function acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+  if (redisClient && isRedisAvailable) {
+    try {
+      const res = await redisClient.set(key, "1", "EX", ttlSeconds, "NX");
+      return res === "OK";
+    } catch {
+      isRedisAvailable = false;
+    }
+  }
+
+  const existing = memoryCache.get(key);
+  if (existing && existing.expiresAt > Date.now()) {
+    return false;
+  }
+  memoryCache.set(key, { data: "1", expiresAt: Date.now() + ttlSeconds * 1000 });
+  return true;
+}
+
+export async function releaseLock(key: string): Promise<void> {
+  if (redisClient && isRedisAvailable) {
+    try {
+      await redisClient.del(key);
+    } catch {
+      // Ignoruj
+    }
+  }
+  memoryCache.delete(key);
+}
