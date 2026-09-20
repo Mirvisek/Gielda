@@ -6,14 +6,15 @@ set -e
 # ==============================================================================
 # Uruchamiany po każdym wdrożeniu nowej wersji: ./deploy/deploy.sh
 
-APP_DIR="/var/www/market-intelligence"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 
 echo "------------------------------------------------------------"
 echo "[$TIMESTAMP] Rozpoczynanie procedury wdrożenia produkcyjnego"
+echo "Lokalizacja: $APP_DIR"
 echo "------------------------------------------------------------"
 
-cd "$APP_DIR" || { echo "BŁĄD: Katalog $APP_DIR nie istnieje!"; exit 1; }
+cd "$APP_DIR" || { echo "BŁĄD: Nie można wejść do katalogu $APP_DIR!"; exit 1; }
 
 echo "[1/6] Pobieranie najnowszych zmian z repozytorium (git pull)..."
 git fetch origin main
@@ -35,7 +36,9 @@ pm2 save
 
 echo "[6/6] Weryfikacja zdrowia aplikacji (Healthcheck)..."
 sleep 3
-HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/health || echo "FAILED")
+APP_PORT=$(grep -E '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ' || echo 3000)
+APP_PORT=${APP_PORT:-3000}
+HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${APP_PORT}/api/health" || echo "FAILED")
 
 if [ "$HEALTH_STATUS" = "200" ]; then
     echo "============================================================"

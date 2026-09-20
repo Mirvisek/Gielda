@@ -1,9 +1,11 @@
+const PORT = process.env.PORT || 3000;
+
 module.exports = {
   apps: [
     {
-      name: "market-web",
+      name: "gielda-web",
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000",
+      args: `start -p ${PORT}`,
       instances: "max",
       exec_mode: "cluster",
       autorestart: true,
@@ -14,7 +16,7 @@ module.exports = {
       },
     },
     {
-      name: "market-worker",
+      name: "gielda-market-worker",
       script: "server/workers/market-worker.ts",
       interpreter: "node_modules/.bin/tsx",
       instances: 1,
@@ -27,7 +29,7 @@ module.exports = {
       },
     },
     {
-      name: "market-scheduler",
+      name: "gielda-scheduler",
       script: "server/scheduler/market-scheduler.ts",
       interpreter: "node_modules/.bin/tsx",
       instances: 1,
@@ -40,7 +42,7 @@ module.exports = {
       },
     },
     {
-      name: "news-worker",
+      name: "gielda-news-worker",
       script: "server/workers/news-worker.ts",
       interpreter: "node_modules/.bin/tsx",
       instances: 1,
@@ -53,7 +55,7 @@ module.exports = {
       },
     },
     {
-      name: "prediction-worker",
+      name: "gielda-prediction-worker",
       script: "server/workers/prediction-worker.ts",
       interpreter: "node_modules/.bin/tsx",
       instances: 1,
@@ -66,7 +68,7 @@ module.exports = {
       },
     },
     {
-      name: "alerts-worker",
+      name: "gielda-alerts-worker",
       script: "server/workers/alerts-worker.ts",
       interpreter: "node_modules/.bin/tsx",
       instances: 1,

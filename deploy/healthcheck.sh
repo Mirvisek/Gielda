@@ -20,13 +20,17 @@ for SERVICE in mariadb redis-server nginx; do
   fi
 done
 
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_PORT=$(grep -E '^PORT=' "${APP_DIR}/.env" 2>/dev/null | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ' || echo 3000)
+APP_PORT=${APP_PORT:-3000}
+
 # 2. Sprawdzenie endpointu aplikacji Next.js
-HTTP_CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/health || echo "ERR")
+HTTP_CODE=$(curl -s -m 5 -o /dev/null -w "%{http_code}" "http://127.0.0.1:${APP_PORT}/api/health" || echo "ERR")
 
 if [ "$HTTP_CODE" != "200" ]; then
   log "AWARIA: Endpoint /api/health zwrócił kod: $HTTP_CODE! Restart procesów PM2..."
-  cd /var/www/market-intelligence && pm2 reload ecosystem.config.js --update-env
+  cd "$APP_DIR" && pm2 reload ecosystem.config.js --update-env
 else
-  # Opcjonalnie: log cichy, tylko w razie awarii
+  # Cicho jeśli wszystko działa
   :
 fi
