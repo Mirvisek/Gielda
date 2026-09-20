@@ -73,6 +73,12 @@ export default function MarketsClient({ initialOverview }: { initialOverview: Ma
             Prognozy
           </Link>
           <Link
+            href="/portfolio"
+            className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors hidden sm:inline"
+          >
+            Portfel
+          </Link>
+          <Link
             href="/dashboard"
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >

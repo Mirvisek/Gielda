@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Scale,
   Newspaper,
+  Briefcase,
 } from "lucide-react";
 
 interface Props {
@@ -115,6 +116,12 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
               Prognozy
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             </Link>
+            <Link
+              href="/portfolio"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium"
+            >
+              Portfel
+            </Link>
             {user.role === "ADMIN" && (
               <Link
                 href="/admin"
@@ -204,7 +211,7 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
         </div>
 
         {/* Dostępne moduły analityczne */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Link
             href="/markets"
             className="p-5 bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-2xl transition-all group"
@@ -256,6 +263,24 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
             </div>
             <p className="text-xs text-slate-500 mt-1">
               Niezmienny rejestr prognoz, Brier Score i weryfikacja stóp zwrotu +1d/7d/30d/90d.
+            </p>
+          </Link>
+
+          <Link
+            href="/portfolio"
+            className="p-5 bg-slate-900/60 border border-slate-800 hover:border-emerald-500/50 rounded-2xl transition-all group"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider group-hover:text-emerald-400 transition-colors">
+                Portfel Inwestycyjny
+              </span>
+              <Briefcase className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-lg font-bold text-slate-100 group-hover:text-white transition-colors">
+              Pozycje & Księga Gotówki
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Wycena rynkowa, audyt transakcji, realized/unrealized P&L i ważone ryzyko AI.
             </p>
           </Link>
         </div>
