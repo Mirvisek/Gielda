@@ -463,6 +463,7 @@ model Signal {
   id               String         @id @default(cuid())
   assetId          String         @map("asset_id")
   timestamp        DateTime       @default(now())
+  direction        String         @default("NEUTRAL") @db.VarChar(16) // POSITIVE, NEGATIVE, NEUTRAL
   opportunityScore Int            @map("opportunity_score")
   riskScore        Int            @map("risk_score")
   confidenceScore  Int            @map("confidence_score")
@@ -470,6 +471,7 @@ model Signal {
   timeHorizon      TimeHorizon    @default(HORIZON_1_MONTH) @map("time_horizon")
   bullThesis       String?        @map("bull_thesis") @db.Text
   bearThesis       String?        @map("bear_thesis") @db.Text
+  catalysts        String?        @db.Text
   invalidators     String?        @db.Text
   rawPayload       String?        @map("raw_payload") @db.LongText
 
@@ -485,9 +487,14 @@ model Signal {
 model SignalFactor {
   id              String         @id @default(cuid())
   signalId        String         @map("signal_id")
+  name            String         @default("FACTOR") @db.VarChar(64)
   factorCategory  FactorCategory @map("factor_category")
-  factorWeight    Decimal        @map("factor_weight") @db.Decimal(5, 2)
-  factorDirection Int            @map("factor_direction") // +1 (catalyst) or -1 (risk)
+  value           Decimal        @default(0.0) @db.Decimal(18, 4)
+  normalizedValue Decimal        @default(0.0) @map("normalized_value") @db.Decimal(8, 4) // -1.0000 do +1.0000
+  factorWeight    Decimal        @default(0.10) @map("factor_weight") @db.Decimal(5, 4)
+  confidence      Decimal        @default(1.0) @db.Decimal(5, 4)
+  factorDirection Int            @map("factor_direction") // +1 (catalyst) or -1 (risk) or 0 (neutral)
+  source          String         @default("TECHNICAL") @db.VarChar(64)
   description     String         @db.Text
 
   signal          Signal         @relation(fields: [signalId], references: [id], onDelete: Cascade)
@@ -505,8 +512,13 @@ model Prediction {
   entryPrice               Decimal           @map("entry_price") @db.Decimal(18, 4)
   predictedDirection       String            @map("predicted_direction") @db.VarChar(16)
   predictedReturnThreshold Decimal?          @map("predicted_return_threshold") @db.Decimal(8, 4)
+  opportunityScore         Int?              @map("opportunity_score")
+  riskScore                Int?              @map("risk_score")
   confidence               Int
+  status                   SignalStatus      @default(ACTIVE)
   thesis                   String?           @db.Text
+  catalysts                String?           @db.Text
+  invalidators             String?           @db.Text
   isImmutable              Boolean           @default(true) @map("is_immutable")
 
   asset                    Asset             @relation(fields: [assetId], references: [id], onDelete: Cascade)

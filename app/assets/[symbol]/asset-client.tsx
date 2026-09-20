@@ -6,6 +6,8 @@ import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Newspaper } from "lucid
 import { MarketQuote, OHLCV, TechnicalIndicators } from "@/lib/market/types";
 import PriceChart from "@/components/market/price-chart";
 import TechnicalPanel from "@/components/market/technical-panel";
+import SignalPanel from "@/components/market/signal-panel";
+import { GeneratedSignal } from "@/lib/scoring/types";
 
 interface RelatedNewsItem {
   id: string;
@@ -25,6 +27,7 @@ interface Props {
   initialCandles: OHLCV[];
   initialIndicators: TechnicalIndicators;
   initialNews?: unknown[];
+  initialSignal?: GeneratedSignal | null;
 }
 
 export default function AssetClient({
@@ -33,6 +36,7 @@ export default function AssetClient({
   initialCandles,
   initialIndicators,
   initialNews = [],
+  initialSignal = null,
 }: Props) {
   const [quote, setQuote] = useState<MarketQuote>(initialQuote);
   const [candles, setCandles] = useState<OHLCV[]>(initialCandles);
@@ -180,6 +184,9 @@ export default function AssetClient({
           onTimeframeChange={handleTimeframeChange}
           loading={loading}
         />
+
+        {/* Silnik Scoringu i Sygnałów AI */}
+        <SignalPanel symbol={symbol} initialSignal={initialSignal} />
 
         {/* Panel Wskaźników Technicznych */}
         <TechnicalPanel indicators={indicators} />
