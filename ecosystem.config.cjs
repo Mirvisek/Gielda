@@ -1,3 +1,7 @@
+try {
+  require("dotenv").config();
+} catch {}
+
 const PORT = process.env.PORT || 3005;
 
 module.exports = {
@@ -6,13 +10,14 @@ module.exports = {
       name: "gielda-web",
       script: "node_modules/next/dist/bin/next",
       args: `start -p ${PORT}`,
-      instances: "max",
-      exec_mode: "cluster",
+      instances: 1,
+      exec_mode: "fork",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
+        PORT: PORT,
       },
     },
     {

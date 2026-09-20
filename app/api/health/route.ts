@@ -47,6 +47,7 @@ export async function GET() {
         maxRetriesPerRequest: 1,
         lazyConnect: true,
       });
+      redis.on("error", () => {});
       await redis.connect();
       await redis.ping();
       await redis.quit();

@@ -3,6 +3,8 @@ import Redis from "ioredis";
 
 // Singleton Redis dla krótkotrwałych wyzwań (challenges)
 let redisClient: Redis | null = null;
+let isRedisAvailable = false;
+
 if (process.env.REDIS_URL) {
   try {
     redisClient = new Redis(process.env.REDIS_URL, {
@@ -11,8 +13,15 @@ if (process.env.REDIS_URL) {
       lazyConnect: true,
       enableOfflineQueue: false,
     });
+    redisClient.on("connect", () => {
+      isRedisAvailable = true;
+    });
+    redisClient.on("error", () => {
+      isRedisAvailable = false;
+    });
   } catch {
     redisClient = null;
+    isRedisAvailable = false;
   }
 }
 
@@ -37,11 +46,12 @@ export function hashToken(token: string): string {
  * Zapisuje jednorazowe wyzwanie (challenge) np. dla WebAuthn z krótkim czasem życia (TTL 5 minut).
  */
 export async function saveChallenge(key: string, challenge: string, ttlSeconds: number = 300): Promise<void> {
-  if (redisClient) {
+  if (redisClient && isRedisAvailable) {
     try {
       await redisClient.set(`challenge:${key}`, challenge, "EX", ttlSeconds);
       return;
     } catch {
+      isRedisAvailable = false;
       // Fallback do pamięci
     }
   }
@@ -56,7 +66,7 @@ export async function saveChallenge(key: string, challenge: string, ttlSeconds: 
  * Pobiera i natychmiast usuwa jednorazowe wyzwanie (single-use).
  */
 export async function consumeChallenge(key: string): Promise<string | null> {
-  if (redisClient) {
+  if (redisClient && isRedisAvailable) {
     try {
       const challenge = await redisClient.get(`challenge:${key}`);
       if (challenge) {
@@ -64,6 +74,7 @@ export async function consumeChallenge(key: string): Promise<string | null> {
         return challenge;
       }
     } catch {
+      isRedisAvailable = false;
       // Fallback do pamięci
     }
   }
