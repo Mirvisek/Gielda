@@ -1,4 +1,5 @@
 import prisma from "@/lib/db/prisma";
+import { OAuthProvider, AuthMethod } from "@prisma/client";
 import { hashPassword, verifyPassword, validatePasswordPolicy } from "@/lib/auth/password";
 import { generateAndStoreRecoveryCodes } from "@/lib/auth/recovery";
 import { logSecurityEvent } from "@/lib/security/security-event";
@@ -318,6 +319,146 @@ export class UserSettingsService {
     });
 
     return codes;
+  }
+
+  /**
+   * Wiąże konto dostawcy zewnętrznego (Google, Apple, Facebook) z bieżącym profilem użytkownika.
+   */
+  async linkOAuthAccount(
+    userId: string,
+    provider: OAuthProvider,
+    providerAccountId: string
+  ): Promise<{ success: boolean; provider: OAuthProvider; providerAccountId: string }> {
+    const trimmedId = providerAccountId.trim();
+    if (!trimmedId || trimmedId.length < 2) {
+      throw new Error("Identyfikator konta lub adres email dostawcy jest nieprawidłowy.");
+    }
+
+    if (!["GOOGLE", "APPLE", "FACEBOOK"].includes(provider)) {
+      throw new Error("Nieobsługiwany dostawca tożsamości.");
+    }
+
+    // 1. Sprawdź, czy to konto zewnętrznego dostawcy nie jest powiązane z INNYM użytkownikiem
+    const existingBinding = await prisma.oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider,
+          providerAccountId: trimmedId,
+        },
+      },
+    });
+
+    if (existingBinding && existingBinding.userId !== userId) {
+      throw new Error(`To konto ${provider} (${trimmedId}) jest już powiązane z innym kontem w systemie.`);
+    }
+
+    // 2. Transakcja: zapis powiązania i aktywacja metody logowania
+    await prisma.$transaction(async (tx) => {
+      // Usuń ewentualne dotychczasowe powiązanie tego samego dostawcy dla tego użytkownika
+      await tx.oAuthAccount.deleteMany({
+        where: {
+          userId,
+          provider,
+        },
+      });
+
+      // Utwórz nowy rekord
+      await tx.oAuthAccount.create({
+        data: {
+          userId,
+          provider,
+          providerAccountId: trimmedId,
+        },
+      });
+
+      // Aktywuj metodę logowania dla tego konta
+      await tx.userAuthMethod.upsert({
+        where: {
+          userId_method: {
+            userId,
+            method: provider as AuthMethod,
+          },
+        },
+        update: { enabled: true },
+        create: {
+          userId,
+          method: provider as AuthMethod,
+          enabled: true,
+        },
+      });
+    });
+
+    await logSecurityEvent({
+      userId,
+      eventType: "OAUTH_LINKED",
+      success: true,
+      metadata: { provider, providerAccountId: trimmedId },
+    });
+
+    return {
+      success: true,
+      provider,
+      providerAccountId: trimmedId,
+    };
+  }
+
+  /**
+   * Odłącza konto zewnętrznego dostawcy (Google, Apple, Facebook) z ochroną Anti-Lockout.
+   */
+  async unlinkOAuthAccount(
+    userId: string,
+    provider: OAuthProvider
+  ): Promise<{ success: boolean }> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        passkeys: true,
+        oauthAccounts: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error("Użytkownik nie istnieje.");
+    }
+
+    const linkedAccount = user.oauthAccounts.find((acc) => acc.provider === provider);
+    if (!linkedAccount) {
+      throw new Error(`Konto ${provider} nie jest powiązane z Twoim profilem.`);
+    }
+
+    // Reguła Anti-Lockout: Użytkownik musi posiadać inną dostępną metodę logowania
+    const otherOAuthCount = user.oauthAccounts.filter((acc) => acc.provider !== provider).length;
+    const hasPassword = !!user.passwordHash;
+    const hasPasskeys = user.passkeys.length > 0;
+
+    if (otherOAuthCount === 0 && !hasPassword && !hasPasskeys) {
+      throw new Error(
+        "Nie możesz odłączyć tego konta, ponieważ jest to Twoja jedyna metoda logowania (Anti-Lockout). Ustaw najpierw hasło lub dodaj klucz Passkey."
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.oAuthAccount.delete({
+        where: { id: linkedAccount.id },
+      });
+
+      await tx.userAuthMethod.updateMany({
+        where: {
+          userId,
+          method: provider as AuthMethod,
+        },
+        data: { enabled: false },
+      });
+    });
+
+    await logSecurityEvent({
+      userId,
+      eventType: "OAUTH_UNLINKED",
+      success: true,
+      metadata: { provider },
+    });
+
+    return { success: true };
   }
 }
 

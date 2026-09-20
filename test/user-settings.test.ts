@@ -233,4 +233,95 @@ describe("UserSettingsService — testy jednostkowe", () => {
       );
     });
   });
+
+  /* ────────────────────────────────────────────────────────────── */
+  /* 7. Powiązywanie kont OAuth (Google, Apple, Facebook)          */
+  /* ────────────────────────────────────────────────────────────── */
+  describe("linkOAuthAccount", () => {
+    it("powinien pomyślnie powiązać konto Google", async () => {
+      vi.spyOn(prisma.oAuthAccount, "findUnique").mockResolvedValue(null);
+      vi.spyOn(prisma, "$transaction").mockImplementation(async (callback: any) => {
+        return callback({
+          oAuthAccount: {
+            deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+            create: vi.fn().mockResolvedValue({ id: "oauth-1", userId, provider: "GOOGLE", providerAccountId: "user@gmail.com" }),
+          },
+          userAuthMethod: {
+            upsert: vi.fn().mockResolvedValue({}),
+          },
+        });
+      });
+
+      const res = await userSettingsService.linkOAuthAccount(userId, "GOOGLE", "user@gmail.com");
+
+      expect(res.success).toBe(true);
+      expect(res.provider).toBe("GOOGLE");
+      expect(res.providerAccountId).toBe("user@gmail.com");
+      expect(securityEventModule.logSecurityEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "OAUTH_LINKED", success: true })
+      );
+    });
+
+    it("powinien zablokować powiązanie konta przypisanego do innego użytkownika", async () => {
+      vi.spyOn(prisma.oAuthAccount, "findUnique").mockResolvedValue({
+        id: "oauth-existing",
+        userId: otherUserId,
+        provider: "GOOGLE",
+        providerAccountId: "taken@gmail.com",
+      } as any);
+
+      await expect(
+        userSettingsService.linkOAuthAccount(userId, "GOOGLE", "taken@gmail.com")
+      ).rejects.toThrow("jest już powiązane z innym kontem");
+    });
+  });
+
+  /* ────────────────────────────────────────────────────────────── */
+  /* 8. Odłączanie kont OAuth (Anti-Lockout)                       */
+  /* ────────────────────────────────────────────────────────────── */
+  describe("unlinkOAuthAccount", () => {
+    it("powinien zablokować odłączenie konta jeśli to jedyna metoda logowania (Anti-Lockout)", async () => {
+      vi.spyOn(prisma.user, "findUnique").mockResolvedValue({
+        id: userId,
+        passwordHash: null,
+        passkeys: [],
+        oauthAccounts: [
+          { id: "oauth-1", userId, provider: "GOOGLE", providerAccountId: "user@gmail.com" },
+        ],
+      } as any);
+
+      await expect(
+        userSettingsService.unlinkOAuthAccount(userId, "GOOGLE")
+      ).rejects.toThrow("Nie możesz odłączyć tego konta, ponieważ jest to Twoja jedyna metoda logowania");
+    });
+
+    it("powinien odłączyć konto OAuth jeśli użytkownik ma hasło", async () => {
+      vi.spyOn(prisma.user, "findUnique").mockResolvedValue({
+        id: userId,
+        passwordHash: "some-password-hash",
+        passkeys: [],
+        oauthAccounts: [
+          { id: "oauth-1", userId, provider: "APPLE", providerAccountId: "apple@icloud.com" },
+        ],
+      } as any);
+
+      vi.spyOn(prisma, "$transaction").mockImplementation(async (callback: any) => {
+        return callback({
+          oAuthAccount: {
+            delete: vi.fn().mockResolvedValue({}),
+          },
+          userAuthMethod: {
+            updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          },
+        });
+      });
+
+      const res = await userSettingsService.unlinkOAuthAccount(userId, "APPLE");
+
+      expect(res.success).toBe(true);
+      expect(securityEventModule.logSecurityEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: "OAUTH_UNLINKED", success: true })
+      );
+    });
+  });
 });

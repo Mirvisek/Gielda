@@ -76,26 +76,31 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-/* ─── Provider icons ────────────────────────────────────────────────────── */
-function ProviderBadge({ provider }: { provider: string }) {
-  const labels: Record<string, string> = {
-    GOOGLE: "Google",
-    APPLE: "Apple",
-    FACEBOOK: "Facebook",
-  };
-  const colors: Record<string, string> = {
-    GOOGLE: "bg-blue-900/40 text-blue-300 border-blue-800/60",
-    APPLE: "bg-slate-700/40 text-slate-200 border-slate-600/60",
-    FACEBOOK: "bg-indigo-900/40 text-indigo-300 border-indigo-800/60",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium border ${colors[provider] ?? "bg-slate-800 text-slate-300 border-slate-700"}`}
-    >
-      {labels[provider] ?? provider}
-    </span>
-  );
-}
+const SUPPORTED_PROVIDERS: {
+  id: "GOOGLE" | "APPLE" | "FACEBOOK";
+  name: string;
+  desc: string;
+  placeholder: string;
+}[] = [
+  {
+    id: "GOOGLE",
+    name: "Google",
+    desc: "Logowanie za pomocą konta Google (np. Gmail / Google Workspace).",
+    placeholder: "twoj.login@gmail.com",
+  },
+  {
+    id: "APPLE",
+    name: "Apple ID",
+    desc: "Bezpieczne logowanie Sign in with Apple powiązane z Twoim Apple ID.",
+    placeholder: "twoj.appleid@icloud.com",
+  },
+  {
+    id: "FACEBOOK",
+    name: "Facebook",
+    desc: "Logowanie za pośrednictwem profilu lub adresu e-mail Facebook.",
+    placeholder: "ID profilu lub email Facebook",
+  },
+];
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 export function SettingsClient({ initialData, currentUser }: Props) {
@@ -103,6 +108,12 @@ export function SettingsClient({ initialData, currentUser }: Props) {
   const [data, setData] = useState<UserSettingsDto>(initialData);
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [toast, setToast] = useState<ToastState>(null);
+
+  /* ── OAuth state ── */
+  const [linkingProvider, setLinkingProvider] = useState<"GOOGLE" | "APPLE" | "FACEBOOK" | null>(null);
+  const [providerAccountIdInput, setProviderAccountIdInput] = useState("");
+  const [isLinkingOAuth, setIsLinkingOAuth] = useState(false);
+  const [unlinkingProvider, setUnlinkingProvider] = useState<"GOOGLE" | "APPLE" | "FACEBOOK" | null>(null);
 
   /* ── helpers ── */
   const showToast = useCallback((type: "success" | "error", text: string) => {
@@ -247,6 +258,47 @@ export function SettingsClient({ initialData, currentUser }: Props) {
       showToast("error", err instanceof Error ? err.message : "Błąd usuwania klucza.");
     } finally {
       setDeletingPasskeyId(null);
+    }
+  }
+
+  /* ── OAuth handlers ── */
+  async function handleLinkOAuth(e: React.FormEvent) {
+    e.preventDefault();
+    if (!linkingProvider || !providerAccountIdInput.trim()) return;
+    setIsLinkingOAuth(true);
+    try {
+      await apiFetch("/api/user/oauth", {
+        method: "POST",
+        body: JSON.stringify({
+          provider: linkingProvider,
+          providerAccountId: providerAccountIdInput.trim(),
+        }),
+      });
+      showToast("success", `Konto ${linkingProvider} zostało pomyślnie powiązane!`);
+      setLinkingProvider(null);
+      setProviderAccountIdInput("");
+      await refreshData();
+      router.refresh();
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Błąd powiązania konta.");
+    } finally {
+      setIsLinkingOAuth(false);
+    }
+  }
+
+  async function handleUnlinkOAuth(provider: "GOOGLE" | "APPLE" | "FACEBOOK") {
+    setUnlinkingProvider(provider);
+    try {
+      await apiFetch(`/api/user/oauth/${provider}`, {
+        method: "DELETE",
+      });
+      showToast("success", `Powiązanie z ${provider} zostało pomyślnie usunięte.`);
+      await refreshData();
+      router.refresh();
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Błąd odłączania konta.");
+    } finally {
+      setUnlinkingProvider(null);
     }
   }
 
@@ -610,47 +662,159 @@ export function SettingsClient({ initialData, currentUser }: Props) {
         {activeTab === "oauth" && (
           <div className="space-y-4">
             <Card>
-              <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
                 <Globe className="w-4 h-4 text-emerald-400" />
-                Powiązania OAuth
+                Powiązania Kont OAuth (Google, Apple ID, Facebook)
               </h2>
-              <p className="text-xs text-slate-400 mb-4">
-                Konta zewnętrznych dostawców powiązane z Twoim kontem. Powiązanie zarządzane jest przez administratora
-                lub następuje przy pierwszym logowaniu przez OAuth.
+              <p className="text-xs text-slate-400 mb-6">
+                W tym miejscu możesz powiązać swoje konto z zewnętrznymi dostawcami tożsamości: Google, Apple ID oraz Facebook.
+                Powiązanie umożliwia logowanie za pomocą jednego kliknięcia i jest chronione regułami Anti-Lockout.
               </p>
 
-              {data.oauthAccounts.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <Globe className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Brak powiązanych kont OAuth.</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {data.oauthAccounts.map((acc) => (
+              {/* Lista 3 dostawców tożsamości */}
+              <div className="space-y-3">
+                {SUPPORTED_PROVIDERS.map((prov) => {
+                  const linkedAcc = data.oauthAccounts.find((a) => a.provider === prov.id);
+                  const isLinked = !!linkedAcc;
+                  const isLinkingThis = linkingProvider === prov.id;
+                  const isUnlinkingThis = unlinkingProvider === prov.id;
+
+                  return (
                     <div
-                      key={acc.id}
-                      className="flex items-center justify-between p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60"
+                      key={prov.id}
+                      className={`p-4 rounded-xl border transition-all ${
+                        isLinked
+                          ? "bg-slate-800/70 border-slate-700/80"
+                          : "bg-slate-900/40 border-slate-800/80"
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <ProviderBadge provider={acc.provider} />
-                        <div>
-                          <div className="text-xs text-slate-400 font-mono truncate max-w-[200px]">
-                            {acc.providerAccountId}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-200 mt-0.5 sm:mt-0 shrink-0">
+                            {prov.id === "GOOGLE" && (
+                              <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+                              </svg>
+                            )}
+                            {prov.id === "APPLE" && (
+                              <svg className="w-5 h-5 text-slate-200" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.35-.58.66-1.09 1.73-.96 2.76 1.01.08 2.08-.51 2.69-1.26z" />
+                              </svg>
+                            )}
+                            {prov.id === "FACEBOOK" && (
+                              <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                              </svg>
+                            )}
                           </div>
-                          <div className="text-[11px] text-slate-500">
-                            Powiązano: {new Date(acc.createdAt).toLocaleDateString("pl-PL")}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-white">{prov.name}</span>
+                              {isLinked ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800/80">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Powiązane
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+                                  Niepowiązane
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">{prov.desc}</p>
+                            {isLinked && (
+                              <div className="text-[11px] text-slate-400 font-mono mt-1 flex flex-wrap items-center gap-2">
+                                <span className="text-emerald-400 font-medium">{linkedAcc.providerAccountId}</span>
+                                <span className="text-slate-600">·</span>
+                                <span className="text-slate-500">
+                                  Powiązano: {new Date(linkedAcc.createdAt).toLocaleDateString("pl-PL")}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
+
+                        <div className="flex items-center gap-2 mt-2 sm:mt-0 shrink-0">
+                          {isLinked ? (
+                            <button
+                              type="button"
+                              onClick={() => handleUnlinkOAuth(prov.id)}
+                              disabled={isUnlinkingThis}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-900/60 bg-red-950/30 hover:bg-red-950/60 text-red-300 text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isUnlinkingThis ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                              <span>Odłącz</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLinkingProvider(prov.id);
+                                setProviderAccountIdInput("");
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Powiąż konto</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+
+                      {/* Formularz powiązania */}
+                      {isLinkingThis && (
+                        <form
+                          onSubmit={handleLinkOAuth}
+                          className="mt-4 pt-3 border-t border-slate-800 space-y-3"
+                        >
+                          <div>
+                            <label className="block text-xs text-slate-300 font-medium mb-1">
+                              Identyfikator lub adres e-mail konta {prov.name}
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={providerAccountIdInput}
+                              onChange={(e) => setProviderAccountIdInput(e.target.value)}
+                              placeholder={prov.placeholder}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-colors"
+                            />
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Wprowadź adres e-mail lub unikalny login {prov.name}, którym chcesz logować się do platformy.
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="submit"
+                              disabled={isLinkingOAuth || !providerAccountIdInput.trim()}
+                              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isLinkingOAuth && <RefreshCw className="w-3 h-3 animate-spin" />}
+                              <span>Zatwierdź powiązanie</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setLinkingProvider(null)}
+                              className="px-3 py-1.5 rounded-xl border border-slate-800 text-slate-400 hover:text-white text-xs transition-colors cursor-pointer"
+                            >
+                              Anuluj
+                            </button>
+                          </div>
+                        </form>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
 
               {/* Lista dozwolonych metod */}
-              <div className="mt-5 pt-4 border-t border-slate-800">
-                <h3 className="text-xs font-semibold text-slate-400 mb-3">Dozwolone metody logowania</h3>
+              <div className="mt-6 pt-4 border-t border-slate-800">
+                <h3 className="text-xs font-semibold text-slate-400 mb-3">Aktywne metody logowania w Twoim profilu</h3>
                 <div className="flex flex-wrap gap-2">
                   {data.authMethods.map((m) => (
                     <span
