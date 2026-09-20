@@ -1,0 +1,33 @@
+# ==============================================================================
+# FAIL2BAN CONFIGURATION — MARKET INTELLIGENCE
+# ==============================================================================
+# Ścieżka docelowa na VPS: /etc/fail2ban/jail.local
+
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+banaction = ufw
+
+[sshd]
+enabled = true
+port = ssh
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 3
+bantime = 24h
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /var/log/nginx/error.log
+maxretry = 3
+
+[nginx-botsearch]
+enabled = true
+filter = nginx-botsearch
+port = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+bantime = 48h

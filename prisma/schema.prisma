@@ -1,0 +1,539 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  LOCKED
+  DISABLED
+  DELETED
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum AuthMethod {
+  PASSWORD
+  GOOGLE
+  APPLE
+  FACEBOOK
+  PASSKEY
+}
+
+enum OAuthProvider {
+  GOOGLE
+  APPLE
+  FACEBOOK
+}
+
+enum AssetType {
+  STOCK
+  ETF
+  COMMODITY
+  CRYPTO
+  INDEX
+  FOREX
+}
+
+enum SourceTier {
+  PRIMARY
+  SECONDARY
+  UNVERIFIED
+}
+
+enum EventType {
+  MACRO
+  GEOPOLITIC
+  EARNINGS
+  CENTRAL_BANK
+  TRADE_RESTRICTION
+  COMMODITY_SHOCK
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ImpactType {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum SignalStatus {
+  ACTIVE
+  INVALIDATED
+  EXPIRED
+  NO_CLEAR_SIGNAL
+  INSUFFICIENT_CONFIDENCE
+}
+
+enum TimeHorizon {
+  HORIZON_1_WEEK
+  HORIZON_1_MONTH
+  HORIZON_3_MONTHS
+  HORIZON_6_MONTHS
+  HORIZON_1_YEAR
+}
+
+enum FactorCategory {
+  TECHNICAL
+  FUNDAMENTAL
+  NEWS
+  GEOPOLITICAL
+  MACRO
+  SOCIAL
+}
+
+enum AlertType {
+  PRICE
+  VOLUME
+  NEWS
+  GEOPOLITICS
+  OPPORTUNITY
+  RISK
+  SENTIMENT
+  PORTFOLIO
+}
+
+// -----------------------------------------------------------------------------
+// 1. UŻYTKOWNICY I AUTENTYKACJA
+// -----------------------------------------------------------------------------
+
+model User {
+  id                    String            @id @default(cuid())
+  email                 String            @unique @db.VarChar(255)
+  displayName           String            @map("display_name") @db.VarChar(255)
+  status                UserStatus        @default(INVITED)
+  role                  UserRole          @default(USER)
+  passwordHash          String?           @map("password_hash") @db.VarChar(255)
+  emailVerifiedAt       DateTime?         @map("email_verified_at")
+  activationTokenHash   String?           @map("activation_token_hash") @db.VarChar(255)
+  activationExpiresAt   DateTime?         @map("activation_expires_at")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  lastLoginAt           DateTime?         @map("last_login_at")
+
+  authMethods           UserAuthMethod[]
+  passkeys              Passkey[]
+  oauthAccounts         OAuthAccount[]
+  sessions              Session[]
+  recoveryCodes         RecoveryCode[]
+  securityEvents        SecurityEvent[]
+  auditLogsActed        AuditLog[]        @relation("ActorAuditLogs")
+  portfolios            Portfolio[]
+  watchlists            Watchlist[]
+  alerts                Alert[]
+
+  @@map("users")
+}
+
+model UserAuthMethod {
+  id        String     @id @default(cuid())
+  userId    String     @map("user_id")
+  method    AuthMethod
+  enabled   Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, method])
+  @@map("user_auth_methods")
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  credentialId String    @unique @map("credential_id") @db.VarChar(255)
+  publicKey    String    @map("public_key") @db.Text
+  counter      BigInt    @default(0)
+  deviceType   String?   @map("device_type") @db.VarChar(64)
+  transports   String?   @db.VarChar(255)
+  name         String    @db.VarChar(100)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  userId            String        @map("user_id")
+  provider          OAuthProvider
+  providerAccountId String        @map("provider_account_id") @db.VarChar(255)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  sessionHash String    @unique @map("session_hash") @db.VarChar(64)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  expiresAt   DateTime  @map("expires_at")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.Text
+  deviceId    String?   @map("device_id") @db.VarChar(128)
+  revokedAt   DateTime? @map("revoked_at")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([sessionHash])
+  @@map("sessions")
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash") @db.VarChar(255)
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  eventType String   @map("event_type") @db.VarChar(64)
+  ipAddress String?  @map("ip_address") @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.Text
+  deviceId  String?  @map("device_id") @db.VarChar(128)
+  success   Boolean
+  metadata  String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("security_events")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?  @map("actor_user_id")
+  action      String   @db.VarChar(64)
+  targetType  String   @map("target_type") @db.VarChar(64)
+  targetId    String?  @map("target_id") @db.VarChar(128)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  metadata    String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor       User?    @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// 2. RYNEK, AKTYWA, CENY I FUNDAMENTY
+// -----------------------------------------------------------------------------
+
+model Asset {
+  id          String      @id @default(cuid())
+  symbol      String      @unique @db.VarChar(32)
+  name        String      @db.VarChar(255)
+  assetType   AssetType   @default(STOCK) @map("asset_type")
+  exchange    String?     @db.VarChar(64)
+  currency    String      @default("USD") @db.VarChar(10)
+  sector      String?     @db.VarChar(100)
+  industry    String?     @db.VarChar(100)
+  country     String?     @db.VarChar(64)
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  prices      Price[]
+  fundamentals Fundamental[]
+  eventAssets EventAsset[]
+  signals     Signal[]
+  predictions Prediction[]
+  positions   PortfolioPosition[]
+  watchlists  Watchlist[]
+  alerts      Alert[]
+
+  @@index([assetType, isActive])
+  @@index([sector])
+  @@map("assets")
+}
+
+model Price {
+  id            String   @id @default(cuid())
+  assetId       String   @map("asset_id")
+  timestamp     DateTime
+  open          Decimal  @db.Decimal(18, 4)
+  high          Decimal  @db.Decimal(18, 4)
+  low           Decimal  @db.Decimal(18, 4)
+  close         Decimal  @db.Decimal(18, 4)
+  volume        Decimal  @db.Decimal(24, 4)
+  adjustedClose Decimal? @map("adjusted_close") @db.Decimal(18, 4)
+
+  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, timestamp])
+  @@index([assetId, timestamp])
+  @@map("prices")
+}
+
+model Fundamental {
+  id              String   @id @default(cuid())
+  assetId         String   @map("asset_id")
+  periodDate      DateTime @map("period_date")
+  revenue         Decimal? @db.Decimal(20, 2)
+  eps             Decimal? @db.Decimal(10, 4)
+  fcf             Decimal? @db.Decimal(20, 2)
+  netMargin       Decimal? @map("net_margin") @db.Decimal(8, 4)
+  debtToEquity    Decimal? @map("debt_to_equity") @db.Decimal(8, 4)
+  cash            Decimal? @db.Decimal(20, 2)
+  peRatio         Decimal? @map("pe_ratio") @db.Decimal(10, 2)
+  evEbitda        Decimal? @map("ev_ebitda") @db.Decimal(10, 2)
+  roic            Decimal? @db.Decimal(8, 4)
+  roe             Decimal? @db.Decimal(8, 4)
+  growthYoy       Decimal? @map("growth_yoy") @db.Decimal(8, 4)
+  guidanceSummary String?  @map("guidance_summary") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, periodDate])
+  @@map("fundamentals")
+}
+
+// -----------------------------------------------------------------------------
+// 3. WIADOMOŚCI I WYDARZENIA GEOPOLITYCZNE
+// -----------------------------------------------------------------------------
+
+model News {
+  id             String     @id @default(cuid())
+  title          String     @db.VarChar(500)
+  summary        String?    @db.Text
+  content        String?    @db.LongText
+  source         String     @db.VarChar(128)
+  sourceUrl      String?    @map("source_url") @db.VarChar(1000)
+  sourceTier     SourceTier @default(SECONDARY) @map("source_tier")
+  contentHash    String     @unique @map("content_hash") @db.VarChar(64)
+  language       String     @default("en") @db.VarChar(10)
+  sentimentScore Decimal?   @map("sentiment_score") @db.Decimal(5, 2)
+  publishedAt    DateTime   @map("published_at")
+  fetchedAt      DateTime   @default(now()) @map("fetched_at")
+
+  @@index([publishedAt])
+  @@index([sourceTier, publishedAt])
+  @@map("news")
+}
+
+model Event {
+  id                  String     @id @default(cuid())
+  eventType           EventType  @map("event_type")
+  country             String?    @db.VarChar(64)
+  actor               String?    @db.VarChar(128)
+  actionSummary       String     @map("action_summary") @db.Text
+  economicConsequence String?    @map("economic_consequence") @db.Text
+  eventTime           DateTime   @map("event_time")
+  severity            Severity   @default(MEDIUM)
+  createdAt           DateTime   @default(now()) @map("created_at")
+
+  eventAssets         EventAsset[]
+
+  @@index([eventTime])
+  @@index([eventType, eventTime])
+  @@map("events")
+}
+
+model EventAsset {
+  id               String     @id @default(cuid())
+  eventId          String     @map("event_id")
+  assetId          String     @map("asset_id")
+  impactType       ImpactType @map("impact_type")
+  confidenceScore  Int        @map("confidence_score")
+  correlationNotes String?    @map("correlation_notes") @db.Text
+
+  event            Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  asset            Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, assetId])
+  @@map("event_assets")
+}
+
+// -----------------------------------------------------------------------------
+// 4. SYGNAŁY, SCORING I PREDICTION JOURNAL (IMMUTABLE)
+// -----------------------------------------------------------------------------
+
+model Signal {
+  id               String         @id @default(cuid())
+  assetId          String         @map("asset_id")
+  timestamp        DateTime       @default(now())
+  opportunityScore Int            @map("opportunity_score")
+  riskScore        Int            @map("risk_score")
+  confidenceScore  Int            @map("confidence_score")
+  status           SignalStatus   @default(ACTIVE)
+  timeHorizon      TimeHorizon    @default(HORIZON_1_MONTH) @map("time_horizon")
+  bullThesis       String?        @map("bull_thesis") @db.Text
+  bearThesis       String?        @map("bear_thesis") @db.Text
+  invalidators     String?        @db.Text
+  rawPayload       String?        @map("raw_payload") @db.LongText
+
+  asset            Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  factors          SignalFactor[]
+  predictions      Prediction[]
+
+  @@index([assetId, timestamp])
+  @@index([status, timestamp])
+  @@map("signals")
+}
+
+model SignalFactor {
+  id              String         @id @default(cuid())
+  signalId        String         @map("signal_id")
+  factorCategory  FactorCategory @map("factor_category")
+  factorWeight    Decimal        @map("factor_weight") @db.Decimal(5, 2)
+  factorDirection Int            @map("factor_direction") // +1 (catalyst) or -1 (risk)
+  description     String         @db.Text
+
+  signal          Signal         @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@index([signalId])
+  @@map("signal_factors")
+}
+
+model Prediction {
+  id                       String            @id @default(cuid())
+  assetId                  String            @map("asset_id")
+  signalId                 String?           @map("signal_id")
+  timestamp                DateTime          @default(now())
+  horizonDays              Int               @map("horizon_days")
+  entryPrice               Decimal           @map("entry_price") @db.Decimal(18, 4)
+  predictedDirection       String            @map("predicted_direction") @db.VarChar(16)
+  predictedReturnThreshold Decimal?          @map("predicted_return_threshold") @db.Decimal(8, 4)
+  confidence               Int
+  thesis                   String?           @db.Text
+  isImmutable              Boolean           @default(true) @map("is_immutable")
+
+  asset                    Asset             @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  signal                   Signal?           @relation(fields: [signalId], references: [id], onDelete: SetNull)
+  result                   PredictionResult?
+
+  @@index([assetId, timestamp])
+  @@map("predictions")
+}
+
+model PredictionResult {
+  id              String     @id @default(cuid())
+  predictionId    String     @unique @map("prediction_id")
+  priceAfter1d    Decimal?   @map("price_after_1d") @db.Decimal(18, 4)
+  priceAfter7d    Decimal?   @map("price_after_7d") @db.Decimal(18, 4)
+  priceAfter30d   Decimal?   @map("price_after_30d") @db.Decimal(18, 4)
+  priceAfter90d   Decimal?   @map("price_after_90d") @db.Decimal(18, 4)
+  actualReturn1d  Decimal?   @map("actual_return_1d") @db.Decimal(8, 4)
+  actualReturn7d  Decimal?   @map("actual_return_7d") @db.Decimal(8, 4)
+  actualReturn30d Decimal?   @map("actual_return_30d") @db.Decimal(8, 4)
+  actualReturn90d Decimal?   @map("actual_return_90d") @db.Decimal(8, 4)
+  evaluatedAt     DateTime?  @map("evaluated_at")
+  isSuccess       Boolean?   @map("is_success")
+
+  prediction      Prediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@map("prediction_results")
+}
+
+// -----------------------------------------------------------------------------
+// 5. PORTFEL, WATCHLISTY I ALERTY
+// -----------------------------------------------------------------------------
+
+model Portfolio {
+  id          String              @id @default(cuid())
+  userId      String              @map("user_id")
+  name        String              @db.VarChar(100)
+  currency    String              @default("USD") @db.VarChar(10)
+  cashBalance Decimal             @default(0.0) @map("cash_balance") @db.Decimal(18, 4)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  positions   PortfolioPosition[]
+
+  @@index([userId])
+  @@map("portfolio")
+}
+
+model PortfolioPosition {
+  id             String    @id @default(cuid())
+  portfolioId    String    @map("portfolio_id")
+  assetId        String    @map("asset_id")
+  quantity       Decimal   @db.Decimal(18, 6)
+  averageBuyPrice Decimal  @map("average_buy_price") @db.Decimal(18, 4)
+  currentValue   Decimal?  @map("current_value") @db.Decimal(18, 4)
+  profitLoss     Decimal?  @map("profit_loss") @db.Decimal(18, 4)
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  portfolio      Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  asset          Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, assetId])
+  @@map("portfolio_positions")
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  assetId   String   @map("asset_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetId])
+  @@index([userId])
+  @@map("watchlists")
+}
+
+model Alert {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  assetId           String?   @map("asset_id")
+  alertType         AlertType @map("alert_type")
+  conditionOperator String    @map("condition_operator") @db.VarChar(16) // e.g. ">", "<", "CROSSES"
+  thresholdValue    Decimal   @map("threshold_value") @db.Decimal(18, 4)
+  isTriggered       Boolean   @default(false) @map("is_triggered")
+  triggeredAt       DateTime? @map("triggered_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset             Asset?    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isTriggered])
+  @@map("alerts")
+}
