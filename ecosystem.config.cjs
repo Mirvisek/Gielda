@@ -29,19 +29,6 @@ module.exports = {
       },
     },
     {
-      name: "gielda-scheduler",
-      script: "server/scheduler/market-scheduler.ts",
-      interpreter: "node_modules/.bin/tsx",
-      instances: 1,
-      exec_mode: "fork",
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "500M",
-      env: {
-        NODE_ENV: "production",
-      },
-    },
-    {
       name: "gielda-news-worker",
       script: "server/workers/news-worker.ts",
       interpreter: "node_modules/.bin/tsx",

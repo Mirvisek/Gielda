@@ -1,43 +1,63 @@
 /**
- * Market Worker - Asynchroniczny proces pobierania danych rynkowych i wyliczania wskaźników.
- * Uruchamiany jako osobny proces w PM2 (zgodnie z punktami 46, 47, 96).
+ * MARKET WORKER — Asynchroniczny proces pobierania danych rynkowych i wyliczania wskaźników
+ * Uruchamiany jako osobny proces w PM2: npx tsx server/workers/market-worker.ts
  */
-import { marketService } from "@/lib/market/market-service";
 
-console.log("[Market Worker] Proces tła zainicjalizowany.");
+import dotenv from "dotenv";
+dotenv.config();
+
+import { marketService } from "../../lib/market/market-service";
 
 const SYMBOLS_TO_MONITOR = ["SPY", "QQQ", "GLD", "USO", "AAPL", "NVDA", "MSFT"];
+const QUOTE_INTERVAL_MS = 2 * 60 * 1000; // Co 2 minuty
+const HISTORY_INTERVAL_MS = 60 * 60 * 1000; // Co godzinę
 
 export async function runQuoteSyncJob() {
-  console.log(`[Market Worker] Rozpoczynanie cyklu aktualizacji notowań (${new Date().toISOString()})...`);
+  console.log(`[${new Date().toISOString()}] [MarketWorker] Rozpoczynanie cyklu aktualizacji notowań...`);
   for (const symbol of SYMBOLS_TO_MONITOR) {
     try {
       const quote = await marketService.getQuote(symbol);
-      console.log(`[Market Worker] Zaktualizowano ${symbol}: $${quote.price} (${quote.changePercent}%)`);
+      console.log(`[MarketWorker] Zaktualizowano ${symbol}: $${quote.price} (${quote.changePercent}%)`);
     } catch (err) {
-      console.error(`[Market Worker] Błąd aktualizacji ${symbol}:`, err);
+      console.error(`[MarketWorker] Błąd aktualizacji ${symbol}:`, err);
     }
   }
 }
 
 export async function runHistorySyncJob() {
-  console.log(`[Market Worker] Rozpoczynanie synchronizacji świec historycznych...`);
+  console.log(`[${new Date().toISOString()}] [MarketWorker] Synchronizacja świec historycznych...`);
   for (const symbol of SYMBOLS_TO_MONITOR) {
     try {
       const candles = await marketService.getHistoricalPrices(symbol, "1d", "1m");
-      console.log(`[Market Worker] Zsynchronizowano ${candles.length} świec dla ${symbol}`);
+      console.log(`[MarketWorker] Zsynchronizowano ${candles.length} świec dla ${symbol}`);
     } catch (err) {
-      console.error(`[Market Worker] Błąd synchronizacji historii dla ${symbol}:`, err);
+      console.error(`[MarketWorker] Błąd synchronizacji historii dla ${symbol}:`, err);
     }
   }
 }
 
-// Jeśli uruchomiony bezpośrednio przez node/tsx
-if (process.argv[1]?.includes("market-worker")) {
-  runQuoteSyncJob().catch(console.error);
+async function start() {
+  console.log("[MarketWorker] Uruchomiono worker notowań rynkowych (interwał: 2 min).");
 
-  process.on("SIGTERM", () => {
-    console.log("[Market Worker] SIGTERM odebrany. Bezpieczne zatrzymywanie...");
+  // Pierwsze wykonanie od razu po starcie
+  await runQuoteSyncJob();
+
+  // Kolejne cykle w interwale
+  const quoteTimer = setInterval(runQuoteSyncJob, QUOTE_INTERVAL_MS);
+  const historyTimer = setInterval(runHistorySyncJob, HISTORY_INTERVAL_MS);
+
+  const shutdown = () => {
+    console.log("[MarketWorker] Zatrzymywanie workera notowań...");
+    clearInterval(quoteTimer);
+    clearInterval(historyTimer);
     process.exit(0);
-  });
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
+
+start().catch((err) => {
+  console.error("[MarketWorker Fatal Error]:", err);
+  process.exit(1);
+});
