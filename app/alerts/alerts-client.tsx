@@ -424,6 +424,12 @@ export default function AlertsClient({
           >
             Prognozy
           </Link>
+          <Link
+            href="/settings"
+            className="text-xs text-slate-400 hover:text-slate-200 transition-colors hidden md:inline"
+          >
+            Ustawienia
+          </Link>
 
           <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-slate-800 text-xs text-slate-400">
             <span className="w-2 h-2 rounded-full bg-rose-500" />

@@ -272,6 +272,12 @@ export default function PredictionClient({
           >
             Alerty
           </Link>
+          <Link
+            href="/settings"
+            className="text-xs text-slate-400 hover:text-slate-200 transition-colors hidden sm:inline"
+          >
+            Ustawienia
+          </Link>
           <NotificationBell />
 
           {isAdmin && (

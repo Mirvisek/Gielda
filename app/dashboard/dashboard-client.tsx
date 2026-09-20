@@ -130,6 +130,12 @@ export default function DashboardClient({ user, allowedMethods }: Props) {
             >
               Alerty
             </Link>
+            <Link
+              href="/settings"
+              className="text-slate-400 hover:text-slate-200 transition-colors font-medium"
+            >
+              Ustawienia
+            </Link>
             {user.role === "ADMIN" && (
               <Link
                 href="/admin"

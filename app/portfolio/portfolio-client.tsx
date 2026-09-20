@@ -441,6 +441,12 @@ export default function PortfolioClient({
           >
             Alerty
           </Link>
+          <Link
+            href="/settings"
+            className="text-xs text-slate-400 hover:text-slate-200 transition-colors hidden md:inline"
+          >
+            Ustawienia
+          </Link>
 
           <NotificationBell />
 

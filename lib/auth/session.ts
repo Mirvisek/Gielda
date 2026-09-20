@@ -157,3 +157,18 @@ export async function revokeAllUserSessions(userId: string): Promise<number> {
 
   return result.count;
 }
+
+/**
+ * Wymaga zalogowanej sesji — w Server Components.
+ * Jeśli brak sesji, rzuca redirect do /login.
+ */
+export async function requireAuth(): Promise<SessionWithUser> {
+  const { redirect } = await import("next/navigation");
+  const sessionData = await getCurrentSession();
+  if (!sessionData) {
+    redirect("/login");
+    // redirect() throws internally — this line is unreachable but satisfies TypeScript:
+    return null as never;
+  }
+  return sessionData;
+}
