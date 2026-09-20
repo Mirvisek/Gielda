@@ -31,13 +31,13 @@ echo "[4/6] Budowanie zoptymalizowanej paczki produkcyjnej Next.js..."
 npm run build
 
 echo "[5/6] Przeładowanie procesów PM2 w trybie zero-downtime..."
-pm2 reload ecosystem.config.js --update-env
+pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
 pm2 save
 
 echo "[6/6] Weryfikacja zdrowia aplikacji (Healthcheck)..."
 sleep 3
-APP_PORT=$(grep -E '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ' || echo 3000)
-APP_PORT=${APP_PORT:-3000}
+APP_PORT=$(grep -E '^PORT=' .env 2>/dev/null | cut -d '=' -f2 | tr -d '"' | tr -d "'" | tr -d ' ' || echo 3005)
+APP_PORT=${APP_PORT:-3005}
 HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${APP_PORT}/api/health" || echo "FAILED")
 
 if [ "$HEALTH_STATUS" = "200" ]; then
