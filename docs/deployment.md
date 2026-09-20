@@ -134,21 +134,37 @@ sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -
 
 ## 6. Krok 5: Konfiguracja Nginx i Certyfikat SSL (Let's Encrypt)
 
-```bash
-# 1. Skopiuj konfigurację serwera Nginx
-sudo cp /var/www/market-intelligence/deploy/nginx/app.conf /etc/nginx/sites-available/app.twojadomena.pl
+Certbot wymaga, aby konfiguracja Nginxa przeszła walidację `nginx -t` przed wystawieniem certyfikatu (odwołania do nieistniejących jeszcze plików `.pem` spowodowałyby błąd).
 
-# 2. Zastąp przykładową domenę swoją właściwą nazwą domeny
+```bash
+# 1. Wstępna konfiguracja HTTP (umożliwiająca walidację ACME przez Certbot):
+sudo tee /etc/nginx/sites-available/app.twojadomena.pl > /dev/null << 'EOF'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name app.twojadomena.pl;
+
+    location / {
+        proxy_pass http://127.0.0.1:3005;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+# 2. Włącz konfigurację witryny linkiem symbolicznym:
+sudo ln -s /etc/nginx/sites-available/app.twojadomena.pl /etc/nginx/sites-enabled/
+
+# 3. Wygeneruj bezpłatny certyfikat SSL z Let's Encrypt:
+sudo certbot --nginx -d app.twojadomena.pl
+
+# 4. Wgraj docelową, pełną konfigurację z nagłówkami bezpieczeństwa i PWA:
+sudo cp /var/www/market-intelligence/deploy/nginx/app.conf /etc/nginx/sites-available/app.twojadomena.pl
 sudo sed -i 's/app.twojadomena.pl/twoja-rzeczywista-domena.pl/g' /etc/nginx/sites-available/app.twojadomena.pl
 
-# 3. Włącz konfigurację witryny
-sudo ln -s /etc/nginx/sites-available/app.twojadomena.pl /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-
-# 4. Wygeneruj bezpłatny certyfikat SSL Let's Encrypt
-sudo certbot --nginx -d twoja-rzeczywista-domena.pl
-
-# 5. Przetestuj i zrestartuj Nginx
+# 5. Przetestuj i przeładuj Nginx:
 sudo nginx -t
 sudo systemctl reload nginx
 ```
