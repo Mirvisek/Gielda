@@ -263,27 +263,28 @@ model AuditLog {
 // -----------------------------------------------------------------------------
 
 model Asset {
-  id          String      @id @default(cuid())
-  symbol      String      @unique @db.VarChar(32)
-  name        String      @db.VarChar(255)
-  assetType   AssetType   @default(STOCK) @map("asset_type")
-  exchange    String?     @db.VarChar(64)
-  currency    String      @default("USD") @db.VarChar(10)
-  sector      String?     @db.VarChar(100)
-  industry    String?     @db.VarChar(100)
-  country     String?     @db.VarChar(64)
-  isActive    Boolean     @default(true) @map("is_active")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(cuid())
+  symbol         String      @unique @db.VarChar(32)
+  name           String      @db.VarChar(255)
+  assetType      AssetType   @default(STOCK) @map("asset_type")
+  exchange       String?     @db.VarChar(64)
+  currency       String      @default("USD") @db.VarChar(10)
+  sector         String?     @db.VarChar(100)
+  industry       String?     @db.VarChar(100)
+  country        String?     @db.VarChar(64)
+  providerSymbol String?     @map("provider_symbol") @db.VarChar(32)
+  isActive       Boolean     @default(true) @map("is_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
-  prices      Price[]
-  fundamentals Fundamental[]
-  eventAssets EventAsset[]
-  signals     Signal[]
-  predictions Prediction[]
-  positions   PortfolioPosition[]
-  watchlists  Watchlist[]
-  alerts      Alert[]
+  prices         Price[]
+  fundamentals   Fundamental[]
+  eventAssets    EventAsset[]
+  signals        Signal[]
+  predictions    Prediction[]
+  positions      PortfolioPosition[]
+  watchlists     Watchlist[]
+  alerts         Alert[]
 
   @@index([assetType, isActive])
   @@index([sector])
@@ -300,11 +301,14 @@ model Price {
   close         Decimal  @db.Decimal(18, 4)
   volume        Decimal  @db.Decimal(24, 4)
   adjustedClose Decimal? @map("adjusted_close") @db.Decimal(18, 4)
+  interval      String   @default("1d") @db.VarChar(10)
+  source        String   @default("yahoo") @db.VarChar(32)
+  createdAt     DateTime @default(now()) @map("created_at")
 
   asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
-  @@unique([assetId, timestamp])
-  @@index([assetId, timestamp])
+  @@unique([assetId, timestamp, interval, source])
+  @@index([assetId, interval, timestamp])
   @@map("prices")
 }
 
