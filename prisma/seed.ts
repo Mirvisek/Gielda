@@ -20,7 +20,7 @@ async function main() {
   }
 
   const adminEmail = (process.env.INITIAL_ADMIN_EMAIL || "admin@market-intelligence.local").toLowerCase().trim();
-  const initialPassword = `Admin_${generateSecureToken(8)}!`;
+  const initialPassword = process.env.INITIAL_ADMIN_PASSWORD || `Admin_${generateSecureToken(8)}!`;
   const passwordHash = await hashPassword(initialPassword);
 
   const admin = await prisma.user.create({
